@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { type ReactElement } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { Easing, FadeInDown } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/primary-button';
@@ -18,22 +18,18 @@ import { reviews } from '@/data/reviews';
 import { Review } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
-// Glass style constants — used throughout the screen for consistency
 const GLASS_BG = 'rgba(255,255,255,0.06)';
-const GLASS_BORDER = 'rgba(255,255,255,0.12)';
-const GLASS_INTENSITY = 25;
+const GLASS_BORDER = 'rgba(255,255,255,0.10)';
+const GLASS_INTENSITY = 22;
 
-const SECTION_ENTER_DURATION = 320;
+const ENTER_DURATION = 320;
 const ITEM_STAGGER = 35;
 
 function getEnterAnimation(delay = 0) {
-  return FadeInDown.duration(SECTION_ENTER_DURATION)
+  return FadeInDown.duration(ENTER_DURATION)
     .delay(delay)
     .easing(Easing.out(Easing.cubic))
-    .withInitialValues({
-      opacity: 0,
-      transform: [{ translateY: 14 }],
-    });
+    .withInitialValues({ opacity: 0, transform: [{ translateY: 12 }] });
 }
 
 function isDefined<T>(value: T | undefined): value is T {
@@ -44,9 +40,8 @@ export default function ProfileScreen(): ReactElement {
   const router = useRouter();
   const textMuted = useThemeColor({}, 'textMuted');
   const accent = useThemeColor({}, 'accent');
-  const ctaMovie = getMovieById(profile.ctaMovieId);
 
-  // Use backdrop from ctaMovie or the first recent activity movie as ambient background
+  const ctaMovie = getMovieById(profile.ctaMovieId);
   const backdropSource =
     ctaMovie?.backdropUrl ??
     getMovieById(profile.recentActivity[0]?.movieId)?.backdropUrl;
@@ -58,9 +53,10 @@ export default function ProfileScreen(): ReactElement {
       return { activity, movie };
     })
     .filter(isDefined);
+
   const recentReviews = profile.recentReviewIds
-    .map((reviewId) => reviews.find((review) => review.id === reviewId))
-    .filter((review): review is Review => review !== undefined);
+    .map((id) => reviews.find((r) => r.id === id))
+    .filter((r): r is Review => r !== undefined);
 
   function handleOpenMovie(movieId: string): void {
     router.push(`/movies/${movieId}`);
@@ -68,120 +64,140 @@ export default function ProfileScreen(): ReactElement {
 
   function handleWriteReview(): void {
     if (!ctaMovie) return;
-    router.push({
-      pathname: '/reviews/new',
-      params: { movieId: ctaMovie.id },
-    });
+    router.push({ pathname: '/reviews/new', params: { movieId: ctaMovie.id } });
   }
 
   return (
     <ThemedView style={styles.screen}>
-      {/* Cinematic ambient backdrop — blurred heavily so it acts as a tinted canvas */}
-      {backdropSource ? (
-        <>
-          <Image
-            source={{ uri: backdropSource }}
-            style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
-            blurRadius={55}
-          />
-          <LinearGradient
-            colors={['rgba(11,13,18,0.55)', 'rgba(11,13,18,0.88)', '#0B0D12']}
-            locations={[0, 0.5, 1]}
-            style={StyleSheet.absoluteFillObject}
-          />
-        </>
-      ) : null}
-
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <ScrollView
-          contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
-          style={styles.scroll}>
+          style={styles.scroll}
+          contentContainerStyle={styles.content}>
 
-          {/* Hero card */}
-          <Animated.View entering={getEnterAnimation(0)} style={styles.heroCardWrap}>
-            <BlurView intensity={GLASS_INTENSITY} tint="dark" style={styles.heroCard}>
-              <View style={styles.heroTopRow}>
-                <BlurView intensity={30} tint="light" style={styles.avatar}>
+          {/* ── Cinematic Hero Header ─────────────────────────────── */}
+          <Animated.View entering={FadeIn.duration(500)} style={styles.heroHeader}>
+            {/* Blurred backdrop from movie */}
+            {backdropSource ? (
+              <Image
+                source={{ uri: backdropSource }}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="cover"
+                blurRadius={48}
+              />
+            ) : null}
+
+            {/* Rich color overlay */}
+            <LinearGradient
+              colors={['rgba(45,10,90,0.7)', 'rgba(18,26,61,0.8)', 'rgba(4,29,31,0.75)']}
+              start={{ x: 0.2, y: 0 }}
+              end={{ x: 0.8, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            {/* Bottom fade to page bg */}
+            <LinearGradient
+              colors={['transparent', '#0B0D12']}
+              locations={[0.55, 1]}
+              style={styles.heroBottomFade}
+            />
+
+            {/* Avatar — fully inside header, bottom-center */}
+            <View style={styles.avatarContainer}>
+              {/* Gradient ring */}
+              <LinearGradient
+                colors={['#a78bfa', '#7c3aed', '#3b82f6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatarRing}>
+                <View style={styles.avatarInner}>
                   <ThemedText style={styles.avatarText}>{profile.account.initials}</ThemedText>
-                </BlurView>
-
-                <View style={styles.accountMeta}>
-                  <BlurView intensity={20} tint="light" style={styles.badge}>
-                    <ThemedText style={[styles.badgeText, { color: accent }]}>
-                      {profile.account.badgeLabel}
-                    </ThemedText>
-                  </BlurView>
-                  <ThemedText style={[styles.joinedLabel, { color: textMuted }]}>
-                    {profile.account.joinedLabel}
-                  </ThemedText>
                 </View>
-              </View>
+              </LinearGradient>
+            </View>
+          </Animated.View>
 
-              <View style={styles.accountCopy}>
-                <ThemedText type="title" style={styles.name}>
-                  {profile.account.name}
-                </ThemedText>
-                <ThemedText style={[styles.username, { color: accent }]}>
-                  {profile.account.username}
-                </ThemedText>
-                <ThemedText style={[styles.bio, { color: textMuted }]}>
-                  {profile.account.bio}
-                </ThemedText>
-              </View>
+          {/* ── Identity Block ────────────────────────────────────── */}
+          <Animated.View entering={getEnterAnimation(80)} style={styles.identityBlock}>
+            <BlurView intensity={20} tint="light" style={styles.badgePill}>
+              <ThemedText style={[styles.badgeText, { color: accent }]}>
+                {profile.account.badgeLabel}
+              </ThemedText>
+            </BlurView>
+            <ThemedText type="title" style={styles.name}>
+              {profile.account.name}
+            </ThemedText>
+            <ThemedText style={[styles.username, { color: accent }]}>
+              {profile.account.username}
+            </ThemedText>
+            <ThemedText style={[styles.bio, { color: textMuted }]}>
+              {profile.account.bio}
+            </ThemedText>
+          </Animated.View>
+
+          {/* ── Stats Strip (horizontal, 1 row) ───────────────────── */}
+          <Animated.View entering={getEnterAnimation(140)} style={styles.statsStripWrap}>
+            <BlurView intensity={GLASS_INTENSITY} tint="dark" style={styles.statsStrip}>
+              {profile.stats.map((stat, i) => (
+                <View
+                  key={stat.label}
+                  style={[styles.statItem, i < profile.stats.length - 1 && styles.statBorder]}>
+                  <ThemedText style={styles.statValue}>{stat.value}</ThemedText>
+                  <ThemedText style={[styles.statLabel, { color: textMuted }]}>{stat.label}</ThemedText>
+                </View>
+              ))}
             </BlurView>
           </Animated.View>
 
-          {/* Section header: Snapshot */}
-          <Animated.View entering={getEnterAnimation(70)} style={styles.sectionHeader}>
-            <View>
-              <ThemedText style={styles.sectionLabel}>Snapshot</ThemedText>
-              <ThemedText type="subtitle">Account overview</ThemedText>
-            </View>
-            <ThemedText style={[styles.sectionMeta, { color: textMuted }]}>4 stats</ThemedText>
-          </Animated.View>
-
-          {/* Stats grid */}
-          <View style={styles.statsGrid}>
-            {profile.stats.map((stat, index) => (
-              <Animated.View
-                key={stat.label}
-                entering={getEnterAnimation(110 + index * ITEM_STAGGER)}
-                style={styles.statCardWrap}>
-                <BlurView intensity={GLASS_INTENSITY} tint="dark" style={styles.statCard}>
-                  <ThemedText style={styles.statValue}>{stat.value}</ThemedText>
-                  <ThemedText type="defaultSemiBold">{stat.label}</ThemedText>
-                  <ThemedText style={[styles.statNote, { color: textMuted }]}>{stat.note}</ThemedText>
-                </BlurView>
-              </Animated.View>
+          {/* ── Genre Chips ───────────────────────────────────────── */}
+          <Animated.View entering={getEnterAnimation(190)} style={styles.chipsRow}>
+            {profile.favoriteGenres.map((genre) => (
+              <BlurView key={genre} intensity={18} tint="light" style={styles.genreChip}>
+                <ThemedText style={styles.genreText}>{genre}</ThemedText>
+              </BlurView>
             ))}
-          </View>
-
-          {/* Taste profile — genre chips */}
-          <Animated.View entering={getEnterAnimation(190)} style={styles.section}>
-            <ThemedText style={styles.sectionLabel}>Taste profile</ThemedText>
-            <ThemedText type="subtitle">Favorite genres</ThemedText>
-            <View style={styles.genreRow}>
-              {profile.favoriteGenres.map((genre) => (
-                <BlurView
-                  key={genre}
-                  intensity={20}
-                  tint="light"
-                  style={styles.genreChip}>
-                  <ThemedText style={styles.genreText}>{genre}</ThemedText>
-                </BlurView>
-              ))}
-            </View>
           </Animated.View>
 
-          {/* Recent activity */}
-          <Animated.View entering={getEnterAnimation(240)} style={styles.sectionHeader}>
+          {/* ── CTA Card (elevated position) ──────────────────────── */}
+          {ctaMovie ? (
+            <Animated.View entering={getEnterAnimation(240)} style={styles.ctaWrap}>
+              <LinearGradient
+                colors={['rgba(124,58,237,0.18)', 'rgba(59,130,246,0.10)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.ctaGradient}>
+                <BlurView intensity={GLASS_INTENSITY} tint="dark" style={styles.ctaCard}>
+                  <ThemedText style={[styles.sectionLabel, { color: accent }]}>Next up</ThemedText>
+                  <ThemedText type="subtitle">{ctaMovie.title}</ThemedText>
+                  <ThemedText style={[styles.ctaCopy, { color: textMuted }]}>
+                    Keep your review streak going — jump into the flow for {ctaMovie.title}.
+                  </ThemedText>
+
+                  <View style={styles.ctaMetaRow}>
+                    {[ctaMovie.year.toString(), ctaMovie.genres[0], `${ctaMovie.runtimeMinutes} min`].map(
+                      (label) => (
+                        <BlurView key={label} intensity={16} tint="light" style={styles.metaChip}>
+                          <ThemedText style={styles.metaChipText}>{label}</ThemedText>
+                        </BlurView>
+                      )
+                    )}
+                  </View>
+
+                  <PrimaryButton label={`Review ${ctaMovie.title}`} onPress={handleWriteReview} />
+                </BlurView>
+              </LinearGradient>
+            </Animated.View>
+          ) : null}
+
+          {/* ── Divider ───────────────────────────────────────────── */}
+          <View style={styles.divider} />
+
+          {/* ── Recent Activity ───────────────────────────────────── */}
+          <Animated.View entering={getEnterAnimation(300)} style={styles.sectionHeader}>
             <View>
               <ThemedText style={styles.sectionLabel}>Recent activity</ThemedText>
               <ThemedText type="subtitle">What this account has been up to</ThemedText>
             </View>
-            <ThemedText style={[styles.sectionMeta, { color: textMuted }]}>
+            <ThemedText style={[styles.sectionCount, { color: textMuted }]}>
               {activityItems.length} updates
             </ThemedText>
           </Animated.View>
@@ -190,7 +206,7 @@ export default function ProfileScreen(): ReactElement {
             {activityItems.map(({ activity, movie }, index) => (
               <Animated.View
                 key={activity.id}
-                entering={getEnterAnimation(290 + index * ITEM_STAGGER)}>
+                entering={getEnterAnimation(340 + index * ITEM_STAGGER)}>
                 <ProfileActivityItem
                   activity={activity}
                   movie={movie}
@@ -200,13 +216,15 @@ export default function ProfileScreen(): ReactElement {
             ))}
           </View>
 
-          {/* Recent reviews */}
-          <Animated.View entering={getEnterAnimation(420)} style={styles.sectionHeader}>
+          <View style={styles.divider} />
+
+          {/* ── Recent Reviews ────────────────────────────────────── */}
+          <Animated.View entering={FadeInUp.duration(280).delay(460)} style={styles.sectionHeader}>
             <View>
               <ThemedText style={styles.sectionLabel}>Recent reviews</ThemedText>
               <ThemedText type="subtitle">Community reads in your lane</ThemedText>
             </View>
-            <ThemedText style={[styles.sectionMeta, { color: textMuted }]}>
+            <ThemedText style={[styles.sectionCount, { color: textMuted }]}>
               {recentReviews.length} cards
             </ThemedText>
           </Animated.View>
@@ -215,41 +233,11 @@ export default function ProfileScreen(): ReactElement {
             {recentReviews.map((review, index) => (
               <Animated.View
                 key={review.id}
-                entering={getEnterAnimation(470 + index * ITEM_STAGGER)}>
+                entering={getEnterAnimation(500 + index * ITEM_STAGGER)}>
                 <ReviewCard review={review} />
               </Animated.View>
             ))}
           </View>
-
-          {/* CTA card */}
-          {ctaMovie ? (
-            <Animated.View
-              entering={getEnterAnimation(580)}
-              style={styles.ctaCardWrap}>
-              <BlurView intensity={GLASS_INTENSITY} tint="dark" style={styles.ctaCard}>
-                <ThemedText style={styles.sectionLabel}>Next up</ThemedText>
-                <ThemedText type="subtitle">Write your next dummy review</ThemedText>
-                <ThemedText style={[styles.ctaCopy, { color: textMuted }]}>
-                  Jump straight into the existing review flow for {ctaMovie.title} and keep the demo
-                  streak going.
-                </ThemedText>
-
-                <View style={styles.ctaMetaRow}>
-                  <BlurView intensity={18} tint="light" style={styles.metaChip}>
-                    <ThemedText style={styles.metaChipText}>{ctaMovie.year}</ThemedText>
-                  </BlurView>
-                  <BlurView intensity={18} tint="light" style={styles.metaChip}>
-                    <ThemedText style={styles.metaChipText}>{ctaMovie.genres[0]}</ThemedText>
-                  </BlurView>
-                  <BlurView intensity={18} tint="light" style={styles.metaChip}>
-                    <ThemedText style={styles.metaChipText}>{ctaMovie.runtimeMinutes} min</ThemedText>
-                  </BlurView>
-                </View>
-
-                <PrimaryButton label={`Review ${ctaMovie.title}`} onPress={handleWriteReview} />
-              </BlurView>
-            </Animated.View>
-          ) : null}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -261,144 +249,142 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0B0D12',
   },
-  scroll: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
   },
+  scroll: {
+    flex: 1,
+  },
   content: {
-    gap: 20,
-    paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
-  // Hero card wrapper needed so BlurView gets proper border-radius clip
-  heroCardWrap: {
-    borderRadius: 28,
+
+  // Hero header
+  heroHeader: {
+    width: '100%',
+    height: 188,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: GLASS_BORDER,
-  },
-  heroCard: {
-    gap: 18,
-    padding: 20,
-    backgroundColor: GLASS_BG,
-  },
-  heroTopRow: {
-    flexDirection: 'row',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
+    paddingBottom: 18,
   },
-  // Avatar wrapper — BlurView needs overflow:hidden to clip border-radius
-  avatar: {
+  heroBottomFade: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+  },
+  avatarContainer: {
+    zIndex: 2,
+  },
+  avatarRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    padding: 3,
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.55,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  avatarInner: {
+    flex: 1,
+    borderRadius: 37,
+    backgroundColor: '#1a1530',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: GLASS_BORDER,
-    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   avatarText: {
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 26,
+    lineHeight: 30,
     fontWeight: '800',
   },
-  accountMeta: {
-    alignItems: 'flex-end',
-    gap: 10,
+
+  // Identity
+  identityBlock: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 5,
   },
-  badge: {
+  badgePill: {
     borderRadius: 999,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: GLASS_BORDER,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 5,
     backgroundColor: GLASS_BG,
   },
   badgeText: {
-    fontSize: 12,
+    fontSize: 11,
     lineHeight: 14,
     fontWeight: '700',
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  joinedLabel: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  accountCopy: {
-    gap: 8,
-  },
   name: {
+    textAlign: 'center',
     lineHeight: 36,
   },
   username: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '700',
   },
   bio: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
   },
-  section: {
-    gap: 10,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '700',
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-  },
-  sectionMeta: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  statCardWrap: {
-    width: '48%',
-    borderRadius: 22,
+
+  // Stats strip
+  statsStripWrap: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: GLASS_BORDER,
   },
-  statCard: {
-    gap: 6,
-    padding: 16,
+  statsStrip: {
+    flexDirection: 'row',
     backgroundColor: GLASS_BG,
   },
+  statItem: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    gap: 3,
+  },
+  statBorder: {
+    borderRightWidth: 1,
+    borderRightColor: GLASS_BORDER,
+  },
   statValue: {
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 18,
+    lineHeight: 22,
     fontWeight: '800',
   },
-  statNote: {
-    fontSize: 13,
-    lineHeight: 18,
+  statLabel: {
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
-  genreRow: {
+
+  // Chips
+  chipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 16,
   },
   genreChip: {
     borderRadius: 999,
@@ -406,39 +392,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: GLASS_BORDER,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
     backgroundColor: GLASS_BG,
   },
   genreText: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: '600',
   },
-  activityList: {
-    gap: 12,
-  },
-  reviewList: {
-    gap: 14,
-  },
-  ctaCardWrap: {
-    borderRadius: 24,
+
+  // CTA
+  ctaWrap: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: GLASS_BORDER,
+    borderColor: 'rgba(124,58,237,0.35)',
+  },
+  ctaGradient: {
+    borderRadius: 20,
   },
   ctaCard: {
-    gap: 14,
+    gap: 12,
     padding: 18,
     backgroundColor: GLASS_BG,
   },
   ctaCopy: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
   },
   ctaMetaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   metaChip: {
     borderRadius: 999,
@@ -446,12 +433,55 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: GLASS_BORDER,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     backgroundColor: GLASS_BG,
   },
   metaChipText: {
-    fontSize: 12,
+    fontSize: 11,
     lineHeight: 14,
     fontWeight: '700',
+  },
+
+  // Divider
+  divider: {
+    height: 1,
+    backgroundColor: GLASS_BORDER,
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 4,
+  },
+
+  // Section headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+  },
+  sectionCount: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+
+  activityList: {
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  reviewList: {
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
 });
