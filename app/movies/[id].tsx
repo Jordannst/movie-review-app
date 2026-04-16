@@ -93,28 +93,6 @@ export default function MovieDetailScreen(): ReactElement {
           style={StyleSheet.absoluteFillObject}
         />
 
-        {/* Back button — top-left, safe-area aware */}
-        <TouchableOpacity
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-          onPress={() => router.back()}
-          style={[styles.backBtn, { top: overlayTop }]}>
-          <BlurView intensity={30} tint="dark" style={styles.backBtnInner}>
-            <ThemedText style={styles.backBtnText}>← Back</ThemedText>
-          </BlurView>
-        </TouchableOpacity>
-
-        {/* Rating pill — top-right, safe-area aware */}
-        <Animated.View entering={getEnterAnimation(80)} style={[styles.ratingPillWrap, { top: overlayTop }]}>
-          <BlurView intensity={30} tint="dark" style={styles.ratingPill}>
-            <ThemedText style={styles.ratingStarText}>★</ThemedText>
-            <ThemedText style={styles.ratingNumText}>{ratingLabel}</ThemedText>
-            <ThemedText style={[styles.ratingCountText, { color: textMuted }]}>
-              · {reviewCountLabel}
-            </ThemedText>
-          </BlurView>
-        </Animated.View>
-
         {/* Poster + title anchored at bottom of backdrop */}
         <View style={styles.backdropContent}>
           <Image
@@ -224,6 +202,30 @@ export default function MovieDetailScreen(): ReactElement {
 
         </View>{/* end contentCard */}
       </ScrollView>
+
+      {/* ── OVERLAYS — rendered AFTER ScrollView so they are always on top ─ */}
+      {/* Back button */}
+      <TouchableOpacity
+        accessibilityLabel="Go back"
+        accessibilityRole="button"
+        onPress={() => router.back()}
+        style={[styles.backBtn, { top: overlayTop }]}>
+        <BlurView intensity={30} tint="dark" style={styles.backBtnInner}>
+          <ThemedText style={styles.backBtnText}>← Back</ThemedText>
+        </BlurView>
+      </TouchableOpacity>
+
+      {/* Rating pill */}
+      <Animated.View entering={getEnterAnimation(80)} style={[styles.ratingPillWrap, { top: overlayTop }]}>
+        <BlurView intensity={30} tint="dark" style={styles.ratingPill}>
+          <ThemedText style={styles.ratingStarText}>★</ThemedText>
+          <ThemedText style={styles.ratingNumText}>{ratingLabel}</ThemedText>
+          <ThemedText style={[styles.ratingCountText, { color: textMuted }]}>
+            · {reviewCountLabel}
+          </ThemedText>
+        </BlurView>
+      </Animated.View>
+
     </ThemedView>
   );
 }
