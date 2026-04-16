@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { type ReactElement } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/primary-button';
 import { ReviewCard } from '@/components/review-card';
@@ -40,6 +41,8 @@ export default function MovieDetailScreen(): ReactElement {
   const border = useThemeColor({}, 'border');
   const textMuted = useThemeColor({}, 'textMuted');
   const accent = useThemeColor({}, 'accent');
+  const insets = useSafeAreaInsets();
+  const overlayTop = insets.top + 12;
 
   function handleBackToHome(): void {
     router.replace('/');
@@ -91,19 +94,19 @@ export default function MovieDetailScreen(): ReactElement {
             style={StyleSheet.absoluteFillObject}
           />
 
-          {/* Back button — overlaid top-left */}
+          {/* Back button — overlaid top-left, safe-area aware */}
           <TouchableOpacity
             accessibilityLabel="Go back"
             accessibilityRole="button"
             onPress={() => router.back()}
-            style={styles.backBtn}>
+            style={[styles.backBtn, { top: overlayTop }]}>
             <BlurView intensity={30} tint="dark" style={styles.backBtnInner}>
               <ThemedText style={styles.backBtnText}>← Back</ThemedText>
             </BlurView>
           </TouchableOpacity>
 
-          {/* Rating pill — overlaid on backdrop */}
-          <Animated.View entering={getEnterAnimation(80)} style={styles.ratingPillWrap}>
+          {/* Rating pill — overlaid top-right, safe-area aware */}
+          <Animated.View entering={getEnterAnimation(80)} style={[styles.ratingPillWrap, { top: overlayTop }]}>
             <BlurView intensity={30} tint="dark" style={styles.ratingPill}>
               <ThemedText style={styles.ratingStarText}>★</ThemedText>
               <ThemedText style={styles.ratingNumText}>{ratingLabel}</ThemedText>
@@ -237,7 +240,7 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     position: 'absolute',
-    top: 52,
+    // top is injected dynamically via insets
     left: 16,
     zIndex: 10,
     borderRadius: 999,
@@ -258,7 +261,7 @@ const styles = StyleSheet.create({
   },
   ratingPillWrap: {
     position: 'absolute',
-    top: 52,
+    // top is injected dynamically via insets
     right: 16,
     zIndex: 10,
     borderRadius: 999,
