@@ -71,7 +71,7 @@ export const movies: Movie[] = [
   },
 ];
 
-export const featuredMovie = movies[0];
+export const featuredMovie = movies.find((m) => m.id === 'the-last-projection') ?? movies[0];
 
 export function getMovieById(id: string): Movie | undefined {
   return movies.find((movie) => movie.id === id);
