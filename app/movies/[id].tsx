@@ -17,6 +17,8 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 
 const SECTION_ENTER_DURATION = 300;
 const ITEM_STAGGER = 40;
+const BACKDROP_HEIGHT = 400;  // taller for immersive Opsi B
+const CARD_START = 330;        // spacer height — backdrop peeks above card
 
 function getEnterAnimation(delay = 0) {
   return FadeInDown.duration(SECTION_ENTER_DURATION)
@@ -76,140 +78,151 @@ export default function MovieDetailScreen(): ReactElement {
 
   return (
     <ThemedView style={styles.screen}>
+
+      {/* ── BACKDROP — absolute, always visible behind scroll ───── */}
+      <Animated.View entering={FadeIn.duration(500)} style={styles.backdropWrap}>
+        <Image
+          source={{ uri: selectedMovie.backdropUrl }}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="cover"
+        />
+        {/* Dark vignette — heavier at bottom so card edge blends */}
+        <LinearGradient
+          colors={['rgba(11,13,18,0.10)', 'rgba(11,13,18,0.55)', '#0B0D12']}
+          locations={[0.2, 0.70, 1]}
+          style={StyleSheet.absoluteFillObject}
+        />
+
+        {/* Back button — top-left, safe-area aware */}
+        <TouchableOpacity
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          style={[styles.backBtn, { top: overlayTop }]}>
+          <BlurView intensity={30} tint="dark" style={styles.backBtnInner}>
+            <ThemedText style={styles.backBtnText}>← Back</ThemedText>
+          </BlurView>
+        </TouchableOpacity>
+
+        {/* Rating pill — top-right, safe-area aware */}
+        <Animated.View entering={getEnterAnimation(80)} style={[styles.ratingPillWrap, { top: overlayTop }]}>
+          <BlurView intensity={30} tint="dark" style={styles.ratingPill}>
+            <ThemedText style={styles.ratingStarText}>★</ThemedText>
+            <ThemedText style={styles.ratingNumText}>{ratingLabel}</ThemedText>
+            <ThemedText style={[styles.ratingCountText, { color: textMuted }]}>
+              · {reviewCountLabel}
+            </ThemedText>
+          </BlurView>
+        </Animated.View>
+
+        {/* Poster + title anchored at bottom of backdrop */}
+        <View style={styles.backdropContent}>
+          <Image
+            source={{ uri: selectedMovie.posterUrl }}
+            style={styles.poster}
+            contentFit="cover"
+          />
+          <View style={styles.titleBlock}>
+            <ThemedText type="title" style={styles.title} numberOfLines={2}>
+              {selectedMovie.title}
+            </ThemedText>
+            <ThemedText style={[styles.tagline, { color: textMuted }]} numberOfLines={2}>
+              {selectedMovie.tagline}
+            </ThemedText>
+          </View>
+        </View>
+      </Animated.View>
+
+      {/* ── SCROLL — overlays backdrop; content card rises over it ─ */}
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         style={styles.scroll}>
 
-        {/* ── 1. BACKDROP — cinematic, full-bleed ───────────────── */}
-        <Animated.View entering={FadeIn.duration(450)} style={styles.backdropWrap}>
-          <Image
-            source={{ uri: selectedMovie.backdropUrl }}
-            style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
-          />
-          <LinearGradient
-            colors={['transparent', 'rgba(11,13,18,0.7)', '#0B0D12']}
-            locations={[0.35, 0.75, 1]}
-            style={StyleSheet.absoluteFillObject}
-          />
+        {/* Transparent spacer — lets backdrop show through */}
+        <View style={styles.spacer} />
 
-          {/* Back button — overlaid top-left, safe-area aware */}
-          <TouchableOpacity
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            onPress={() => router.back()}
-            style={[styles.backBtn, { top: overlayTop }]}>
-            <BlurView intensity={30} tint="dark" style={styles.backBtnInner}>
-              <ThemedText style={styles.backBtnText}>← Back</ThemedText>
-            </BlurView>
-          </TouchableOpacity>
+        {/* Content card — rounded top, dark bg, rises over backdrop */}
+        <View style={styles.contentCard}>
 
-          {/* Rating pill — overlaid top-right, safe-area aware */}
-          <Animated.View entering={getEnterAnimation(80)} style={[styles.ratingPillWrap, { top: overlayTop }]}>
-            <BlurView intensity={30} tint="dark" style={styles.ratingPill}>
-              <ThemedText style={styles.ratingStarText}>★</ThemedText>
-              <ThemedText style={styles.ratingNumText}>{ratingLabel}</ThemedText>
-              <ThemedText style={[styles.ratingCountText, { color: textMuted }]}>
-                · {reviewCountLabel}
-              </ThemedText>
+          {/* ── META STRIP ───────────────────────────────────────── */}
+          <Animated.View entering={getEnterAnimation(100)} style={styles.metaStripWrap}>
+            <BlurView intensity={20} tint="dark" style={styles.metaStrip}>
+              {[
+                { label: 'Year', value: selectedMovie.year.toString() },
+                { label: 'Runtime', value: formatRuntime(selectedMovie.runtimeMinutes) },
+                { label: 'Director', value: selectedMovie.director.split(' ').pop() ?? selectedMovie.director },
+              ].map((item, i, arr) => (
+                <View
+                  key={item.label}
+                  style={[styles.metaItem, i < arr.length - 1 && styles.metaItemBorder]}>
+                  <ThemedText style={[styles.metaLabel, { color: textMuted }]} numberOfLines={1}>{item.label}</ThemedText>
+                  <ThemedText style={styles.metaValue} numberOfLines={1}>{item.value}</ThemedText>
+                </View>
+              ))}
             </BlurView>
           </Animated.View>
 
-          {/* Poster + title overlaid at bottom of backdrop */}
-          <View style={styles.backdropContent}>
-            <Image
-              source={{ uri: selectedMovie.posterUrl }}
-              style={styles.poster}
-              contentFit="cover"
-            />
-            <View style={styles.titleBlock}>
-              <ThemedText type="title" style={styles.title} numberOfLines={2}>
-                {selectedMovie.title}
-              </ThemedText>
-              <ThemedText style={[styles.tagline, { color: textMuted }]} numberOfLines={2}>
-                {selectedMovie.tagline}
-              </ThemedText>
-            </View>
-          </View>
-        </Animated.View>
-
-        {/* ── 2. META STRIP — horizontal, scannable ─────────────── */}
-        <Animated.View entering={getEnterAnimation(100)} style={styles.metaStripWrap}>
-          <BlurView intensity={20} tint="dark" style={styles.metaStrip}>
-            {[
-              { label: 'Year', value: selectedMovie.year.toString() },
-              { label: 'Runtime', value: formatRuntime(selectedMovie.runtimeMinutes) },
-              { label: 'Director', value: selectedMovie.director.split(' ').pop() ?? selectedMovie.director },
-            ].map((item, i, arr) => (
-              <View
-                key={item.label}
-                style={[styles.metaItem, i < arr.length - 1 && styles.metaItemBorder]}>
-                <ThemedText style={[styles.metaLabel, { color: textMuted }]} numberOfLines={1}>{item.label}</ThemedText>
-                <ThemedText style={styles.metaValue} numberOfLines={1}>{item.value}</ThemedText>
-              </View>
+          {/* ── GENRE CHIPS ──────────────────────────────────────── */}
+          <Animated.View entering={getEnterAnimation(140)} style={styles.genreRow}>
+            {selectedMovie.genres.map((genre) => (
+              <BlurView
+                key={genre}
+                intensity={18}
+                tint="light"
+                style={styles.genreChip}>
+                <ThemedText style={styles.genreText}>{genre}</ThemedText>
+              </BlurView>
             ))}
-          </BlurView>
-        </Animated.View>
+          </Animated.View>
 
-        {/* ── 3. GENRE CHIPS — above synopsis ───────────────────── */}
-        <Animated.View entering={getEnterAnimation(140)} style={styles.genreRow}>
-          {selectedMovie.genres.map((genre) => (
-            <BlurView
-              key={genre}
-              intensity={18}
-              tint="light"
-              style={styles.genreChip}>
-              <ThemedText style={styles.genreText}>{genre}</ThemedText>
-            </BlurView>
-          ))}
-        </Animated.View>
+          {/* ── SYNOPSIS ─────────────────────────────────────────── */}
+          <Animated.View entering={getEnterAnimation(180)} style={styles.section}>
+            <ThemedText style={[styles.sectionLabel, { color: accent }]}>Synopsis</ThemedText>
+            <ThemedText style={[styles.bodyCopy, { color: textMuted }]}>
+              {selectedMovie.synopsis}
+            </ThemedText>
+          </Animated.View>
 
-        {/* ── 4. SYNOPSIS ───────────────────────────────────────── */}
-        <Animated.View entering={getEnterAnimation(180)} style={styles.section}>
-          <ThemedText style={[styles.sectionLabel, { color: accent }]}>Synopsis</ThemedText>
-          <ThemedText style={[styles.bodyCopy, { color: textMuted }]}>
-            {selectedMovie.synopsis}
-          </ThemedText>
-        </Animated.View>
+          {/* ── CONTEXTUAL CTA ───────────────────────────────────── */}
+          <Animated.View entering={getEnterAnimation(220)} style={styles.ctaWrap}>
+            <LinearGradient
+              colors={['rgba(124,58,237,0.18)', 'rgba(59,130,246,0.10)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.ctaGradient}>
+              <BlurView intensity={22} tint="dark" style={styles.ctaCard}>
+                <View style={styles.ctaTextBlock}>
+                  <ThemedText style={[styles.ctaKicker, { color: accent }]}>Seen this film?</ThemedText>
+                  <ThemedText style={[styles.ctaBody, { color: textMuted }]}>
+                    Share your take with the community — your review helps others decide.
+                  </ThemedText>
+                </View>
+                <PrimaryButton label="Write Review" onPress={handleWriteReview} />
+              </BlurView>
+            </LinearGradient>
+          </Animated.View>
 
-        {/* ── 5. CONTEXTUAL CTA — "Seen this film?" ─────────────── */}
-        <Animated.View entering={getEnterAnimation(220)} style={styles.ctaWrap}>
-          <LinearGradient
-            colors={['rgba(124,58,237,0.18)', 'rgba(59,130,246,0.10)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.ctaGradient}>
-            <BlurView intensity={22} tint="dark" style={styles.ctaCard}>
-              <View style={styles.ctaTextBlock}>
-                <ThemedText style={[styles.ctaKicker, { color: accent }]}>Seen this film?</ThemedText>
-                <ThemedText style={[styles.ctaBody, { color: textMuted }]}>
-                  Share your take with the community — your review helps others decide.
-                </ThemedText>
-              </View>
-              <PrimaryButton label="Write Review" onPress={handleWriteReview} />
-            </BlurView>
-          </LinearGradient>
-        </Animated.View>
+          {/* ── REVIEWS ──────────────────────────────────────────── */}
+          <Animated.View entering={getEnterAnimation(260)} style={styles.sectionHeader}>
+            <View>
+              <ThemedText style={styles.sectionLabel}>Community</ThemedText>
+              <ThemedText type="subtitle">Recent reviews preview</ThemedText>
+            </View>
+            <ThemedText style={[styles.reviewMeta, { color: textMuted }]}>{reviewCountLabel}</ThemedText>
+          </Animated.View>
 
-        {/* ── 6. REVIEWS SECTION ────────────────────────────────── */}
-        <Animated.View entering={getEnterAnimation(260)} style={styles.sectionHeader}>
-          <View>
-            <ThemedText style={styles.sectionLabel}>Community</ThemedText>
-            <ThemedText type="subtitle">Recent reviews preview</ThemedText>
+          <View style={styles.reviewList}>
+            {reviews.map((review, index) => (
+              <Animated.View
+                key={review.id}
+                entering={getEnterAnimation(310 + index * ITEM_STAGGER)}>
+                <ReviewCard review={review} />
+              </Animated.View>
+            ))}
           </View>
-          <ThemedText style={[styles.reviewMeta, { color: textMuted }]}>{reviewCountLabel}</ThemedText>
-        </Animated.View>
 
-        <View style={styles.reviewList}>
-          {reviews.map((review, index) => (
-            <Animated.View
-              key={review.id}
-              entering={getEnterAnimation(310 + index * ITEM_STAGGER)}>
-              <ReviewCard review={review} />
-            </Animated.View>
-          ))}
-        </View>
+        </View>{/* end contentCard */}
       </ScrollView>
     </ThemedView>
   );
@@ -226,15 +239,34 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
-  content: {
-    paddingBottom: 48,
-    gap: 18,
+  // Transparent — spacer lets backdrop show through initially
+  spacer: {
+    height: CARD_START,
+    backgroundColor: 'transparent',
   },
-
-  // Backdrop
+  content: {
+    paddingBottom: 0,   // contentCard handles bottom padding
+  },
+  // Content card rises over backdrop while scrolling
+  contentCard: {
+    backgroundColor: '#0B0D12',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingTop: 18,
+    paddingBottom: 56,
+    gap: 18,
+    // Extend shadow up into backdrop for a smooth blend
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 24,
+  },
+  // Backdrop — absolute, full-bleed, behind scroll
   backdropWrap: {
-    width: '100%',
-    height: 300,
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: BACKDROP_HEIGHT,
     overflow: 'hidden',
     justifyContent: 'flex-end',
   },
