@@ -1,4 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -95,6 +96,65 @@ function StarButton({ active, accent, onPress }: StarButtonProps): ReactElement 
   );
 }
 
+// ── Banner header (safe-area-aware, no overlapping) ────────
+type BannerHeaderProps = {
+  accent: string;
+  movieTitle: string;
+  movieYear: string;
+  onBack: () => void;
+};
+
+function BannerHeader({ accent, movieTitle, movieYear, onBack }: BannerHeaderProps): ReactElement {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Animated.View entering={FadeIn.duration(450)} style={styles.topBanner}>
+      {/* Gradient backgrounds */}
+      <LinearGradient
+        colors={['rgba(45,10,90,0.80)', 'rgba(18,26,61,0.85)', 'rgba(4,29,31,0.80)']}
+        start={{ x: 0.2, y: 0 }}
+        end={{ x: 0.8, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <LinearGradient
+        colors={['transparent', '#0B0D12']}
+        locations={[0.55, 1]}
+        style={styles.bannerFade}
+      />
+
+      {/* Column layout: top row → spacer → bottom row. No absolute positioning. */}
+      <View style={[styles.bannerInner, { paddingTop: insets.top + 10 }]}>
+        {/* Top row — back button left-aligned */}
+        <TouchableOpacity
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+          onPress={onBack}
+          style={styles.backBtn}>
+          <BlurView intensity={28} tint="dark" style={styles.backBtnInner}>
+            <ThemedText style={styles.backBtnText}>← Back</ThemedText>
+          </BlurView>
+        </TouchableOpacity>
+
+        {/* Spacer pushes content down */}
+        <View style={styles.bannerSpacer} />
+
+        {/* Bottom content — pill + title */}
+        <View style={styles.bannerContent}>
+          <BlurView intensity={22} tint="dark" style={styles.movieContextPill}>
+            <ThemedText style={styles.reviewingLabel}>Reviewing</ThemedText>
+            <ThemedText style={[styles.movieContextTitle, { color: accent }]}>
+              {movieTitle}{movieYear}
+            </ThemedText>
+          </BlurView>
+          <ThemedText type="title" style={styles.pageTitle}>
+            Your take. 🎬
+          </ThemedText>
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
 // ── Main screen ────────────────────────────────────────────
 export default function ReviewFormScreen(): ReactElement {
   const router = useRouter();
@@ -166,43 +226,12 @@ export default function ReviewFormScreen(): ReactElement {
         keyboardShouldPersistTaps="handled">
 
         {/* ── 1. Cinematic context header ─────────────────── */}
-        <Animated.View entering={FadeIn.duration(450)} style={styles.topBanner}>
-          <LinearGradient
-            colors={['rgba(45,10,90,0.80)', 'rgba(18,26,61,0.85)', 'rgba(4,29,31,0.80)']}
-            start={{ x: 0.2, y: 0 }}
-            end={{ x: 0.8, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <LinearGradient
-            colors={['transparent', '#0B0D12']}
-            locations={[0.55, 1]}
-            style={styles.bannerFade}
-          />
-
-          {/* Back button */}
-          <TouchableOpacity
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            onPress={() => router.back()}
-            style={styles.backBtn}>
-            <BlurView intensity={28} tint="dark" style={styles.backBtnInner}>
-              <ThemedText style={styles.backBtnText}>← Back</ThemedText>
-            </BlurView>
-          </TouchableOpacity>
-
-          {/* Movie context + page title */}
-          <View style={styles.bannerContent}>
-            <BlurView intensity={22} tint="dark" style={styles.movieContextPill}>
-              <ThemedText style={styles.reviewingLabel}>Reviewing</ThemedText>
-              <ThemedText style={[styles.movieContextTitle, { color: accent }]}>
-                {movieTitle}{movieYear}
-              </ThemedText>
-            </BlurView>
-            <ThemedText type="title" style={styles.pageTitle}>
-              Your take. 🎬
-            </ThemedText>
-          </View>
-        </Animated.View>
+        <BannerHeader
+          accent={accent}
+          movieTitle={movieTitle}
+          movieYear={movieYear}
+          onBack={() => router.back()}
+        />
 
         {/* ── 2. Rating ────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.duration(300).delay(80).easing(Easing.out(Easing.cubic))} style={styles.section}>
@@ -316,9 +345,19 @@ const styles = StyleSheet.create({
   // Top banner
   topBanner: {
     width: '100%',
-    height: 160,
+    minHeight: 170,
     overflow: 'hidden',
-    justifyContent: 'flex-end',
+  },
+  bannerInner: {
+    flex: 1,
+    flexDirection: 'column',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 0,
+  },
+  bannerSpacer: {
+    flex: 1,
+    minHeight: 12,
   },
   bannerFade: {
     position: 'absolute',
@@ -326,12 +365,9 @@ const styles = StyleSheet.create({
     height: 70,
   },
   backBtn: {
-    position: 'absolute',
-    top: 52,
-    left: 16,
-    zIndex: 10,
     borderRadius: 999,
     overflow: 'hidden',
+    alignSelf: 'flex-start',
   },
   backBtnInner: {
     paddingHorizontal: 14,
