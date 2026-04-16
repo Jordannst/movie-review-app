@@ -1,9 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { type ReactElement, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Dimensions, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -77,14 +78,21 @@ export default function HomeScreen(): ReactElement {
 
   return (
     <ThemedView style={styles.screen}>
-      {/* Ambient blurred backdrop */}
-      <Image
-        source={{ uri: featuredMovie.backdropUrl }}
-        style={StyleSheet.absoluteFillObject}
-        contentFit="cover"
-        blurRadius={60}
-      />
-      <View style={[StyleSheet.absoluteFillObject, styles.backdropOverlay]} />
+      {/* ── Ambient backdrop: film colours fade to dark at ~58% screen height ─ */}
+      <View style={styles.ambientWrap}>
+        <Image
+          source={{ uri: featuredMovie.backdropUrl }}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="cover"
+          blurRadius={50}
+        />
+        {/* Gradient: transparent at top → solid #0B0D12 at bottom */}
+        <LinearGradient
+          colors={['transparent', 'transparent', '#0B0D12']}
+          locations={[0, 0.35, 1]}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </View>
 
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <ScrollView
@@ -220,8 +228,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0B0D12',
   },
-  backdropOverlay: {
-    backgroundColor: 'rgba(11, 13, 18, 0.75)',
+  // Ambient backdrop — top 58% only, fades to dark below
+  ambientWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Dimensions.get('window').height * 0.58,
+    overflow: 'hidden',
   },
   safeArea: {
     flex: 1,
