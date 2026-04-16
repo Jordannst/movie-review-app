@@ -1,4 +1,6 @@
+import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { type ReactElement } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -72,8 +74,13 @@ export default function MovieDetailScreen(): ReactElement {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         style={{ backgroundColor: background }}>
-        <Animated.View entering={getEnterAnimation(0)}>
-          <Image source={{ uri: selectedMovie.backdropUrl }} style={styles.backdrop} contentFit="cover" />
+        <Animated.View entering={getEnterAnimation(0)} style={{ width: '100%', height: 260 }}>
+          <Image source={{ uri: selectedMovie.backdropUrl }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+          <LinearGradient
+            colors={['transparent', 'rgba(11, 13, 18, 0.8)', '#0B0D12']}
+            locations={[0.4, 0.8, 1]}
+            style={StyleSheet.absoluteFillObject}
+          />
         </Animated.View>
 
         <Animated.View entering={getEnterAnimation(70)} style={styles.posterRow}>
@@ -90,15 +97,15 @@ export default function MovieDetailScreen(): ReactElement {
         </Animated.View>
 
         <Animated.View entering={getEnterAnimation(110)} style={styles.metaRow}>
-          <View style={[styles.metaChip, { backgroundColor: surface, borderColor: border }]}>
+          <BlurView intensity={20} tint="light" style={[styles.metaChip, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }]}>
             <ThemedText style={styles.metaText}>{selectedMovie.year}</ThemedText>
-          </View>
-          <View style={[styles.metaChip, { backgroundColor: surface, borderColor: border }]}>
+          </BlurView>
+          <BlurView intensity={20} tint="light" style={[styles.metaChip, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }]}>
             <ThemedText style={styles.metaText}>{selectedMovie.runtimeMinutes} min</ThemedText>
-          </View>
-          <View style={[styles.metaChip, { backgroundColor: surface, borderColor: border }]}>
+          </BlurView>
+          <BlurView intensity={20} tint="light" style={[styles.metaChip, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }]}>
             <ThemedText style={styles.metaText}>{selectedMovie.director}</ThemedText>
-          </View>
+          </BlurView>
         </Animated.View>
 
         <Animated.View entering={getEnterAnimation(150)} style={styles.section}>
@@ -110,9 +117,9 @@ export default function MovieDetailScreen(): ReactElement {
           <ThemedText type="subtitle">Genres</ThemedText>
           <View style={styles.genreRow}>
             {selectedMovie.genres.map((genre) => (
-              <View key={genre} style={[styles.genreChip, { backgroundColor: surface, borderColor: border }]}>
+              <BlurView intensity={20} tint="light" key={genre} style={[styles.genreChip, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }]}>
                 <ThemedText style={styles.genreText}>{genre}</ThemedText>
-              </View>
+              </BlurView>
             ))}
           </View>
         </Animated.View>

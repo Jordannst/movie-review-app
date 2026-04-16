@@ -1,4 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { BlurView } from 'expo-blur';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { type ReactElement, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -62,11 +65,13 @@ export default function HomeScreen(): ReactElement {
 
   return (
     <ThemedView style={styles.screen}>
+      <Image source={{ uri: featuredMovie.backdropUrl }} style={StyleSheet.absoluteFillObject} contentFit="cover" blurRadius={60} />
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(11, 13, 18, 0.75)' }]} />
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <ScrollView
+          <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
-          style={{ backgroundColor: background }}>
+          style={{ backgroundColor: 'transparent' }}>
           <Animated.View entering={getEnterAnimation(0)} style={styles.header}>
             <View style={styles.headerCopy}>
               <ThemedText style={[styles.kicker, { color: accent }]}>Tonight&apos;s Discover</ThemedText>
@@ -79,8 +84,8 @@ export default function HomeScreen(): ReactElement {
               </ThemedText>
             </View>
 
-            <View style={[styles.searchBar, { backgroundColor: surface, borderColor: border }]}>
-              <View style={[styles.searchIconWrap, { backgroundColor: surfaceMuted }]}>
+            <BlurView intensity={40} tint="dark" style={[styles.searchBar, { backgroundColor: 'transparent', borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }]}>
+              <View style={[styles.searchIconWrap, { backgroundColor: 'transparent' }]}>
                 <MaterialIcons color={accent} name="search" size={18} />
               </View>
               <TextInput
@@ -95,7 +100,7 @@ export default function HomeScreen(): ReactElement {
                 style={[styles.searchInput, { color: text }]}
                 value={query}
               />
-            </View>
+            </BlurView>
 
             <View style={styles.chipRow}>
               {DISCOVER_CHIPS.map((chip, index) => {
@@ -111,11 +116,16 @@ export default function HomeScreen(): ReactElement {
                     style={[
                       styles.chip,
                       {
-                        backgroundColor: surface,
-                        borderColor: isFeaturedChip ? accent : border,
+                        backgroundColor: 'transparent',
+                        borderColor: isFeaturedChip ? accent : 'rgba(255,255,255,0.1)',
+                        overflow: 'hidden',
+                        paddingHorizontal: 0,
+                        paddingVertical: 0,
                       },
                     ]}>
-                    <ThemedText style={[styles.chipText, isFeaturedChip ? { color: accent } : null]}>{chip}</ThemedText>
+                    <BlurView intensity={40} tint="dark" style={{ paddingHorizontal: 14, paddingVertical: 10 }}>
+                      <ThemedText style={[styles.chipText, isFeaturedChip ? { color: accent } : null]}>{chip}</ThemedText>
+                    </BlurView>
                   </MotionPressable>
                 );
               })}
@@ -123,11 +133,12 @@ export default function HomeScreen(): ReactElement {
           </Animated.View>
 
           {!normalizedQuery ? (
-            <Animated.View entering={getEnterAnimation(70)}>
+            <Animated.View entering={getEnterAnimation(70)} style={{ marginHorizontal: -20 }}>
               <FeaturedHero
                 movie={featuredMovie}
                 actionLabel="View Details"
                 onActionPress={() => handleOpenMovie(featuredMovie.id)}
+                style={{ borderRadius: 0, borderWidth: 0 }}
               />
             </Animated.View>
           ) : null}
@@ -151,12 +162,12 @@ export default function HomeScreen(): ReactElement {
               ))}
             </View>
           ) : (
-            <View style={[styles.emptyState, { backgroundColor: surface, borderColor: border }]}>
+            <BlurView intensity={30} tint="dark" style={[styles.emptyState, { backgroundColor: 'transparent', borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }]}>
               <ThemedText type="subtitle">No movies found</ThemedText>
               <ThemedText style={[styles.emptyStateText, { color: textMuted }]}>
                 Try a different title, genre, director, synopsis keyword, or year.
               </ThemedText>
-            </View>
+            </BlurView>
           )}
         </ScrollView>
       </SafeAreaView>
