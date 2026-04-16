@@ -34,10 +34,10 @@ export type ProfileData = {
 
 export const profile: ProfileData = {
   account: {
-    name: 'Jordan Stone',
+    name: 'Jordannn',
     username: '@jordannst',
     initials: 'JS',
-    bio: 'Seeded demo account for the MovieReview MVP. Mostly here for sleek thrillers, repertory mysteries, and a dependable Sunday review streak.',
+    bio: 'Seeded demo account. Mostly here for sleek thrillers, repertory mysteries, and a dependable Sunday review streak.',
     joinedLabel: 'Joined April 2026',
     badgeLabel: 'Dummy account',
   },
