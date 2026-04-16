@@ -17,8 +17,8 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 
 const SECTION_ENTER_DURATION = 300;
 const ITEM_STAGGER = 40;
-const BACKDROP_HEIGHT = 400;  // taller for immersive Opsi B
-const CARD_START = 330;        // spacer height — backdrop peeks above card
+const BACKDROP_HEIGHT = 460;  // taller backdrop for full immersion
+const CARD_START = 420;        // card starts in gradient fade zone, below poster+title
 
 function getEnterAnimation(delay = 0) {
   return FadeInDown.duration(SECTION_ENTER_DURATION)
@@ -331,6 +331,7 @@ const styles = StyleSheet.create({
     gap: 16,
     padding: 16,
     paddingTop: 0,
+    paddingBottom: 52, // lift poster above the card-overlap/gradient zone
   },
   poster: {
     width: 100,
