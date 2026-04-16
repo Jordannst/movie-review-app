@@ -17,8 +17,8 @@ export default function RootLayout(): ReactElement {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="movies/[id]" options={{ title: 'Movie Detail' }} />
-        <Stack.Screen name="reviews/new" options={{ title: 'Review Form' }} />
+        <Stack.Screen name="movies/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="reviews/new" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
