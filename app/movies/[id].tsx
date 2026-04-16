@@ -145,7 +145,7 @@ export default function MovieDetailScreen(): ReactElement {
               <View
                 key={item.label}
                 style={[styles.metaItem, i < arr.length - 1 && styles.metaItemBorder]}>
-                <ThemedText style={[styles.metaLabel, { color: textMuted }]}>{item.label}</ThemedText>
+                <ThemedText style={[styles.metaLabel, { color: textMuted }]} numberOfLines={1}>{item.label}</ThemedText>
                 <ThemedText style={styles.metaValue} numberOfLines={1}>{item.value}</ThemedText>
               </View>
             ))}
@@ -338,6 +338,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: 11,
+    paddingHorizontal: 4,
     gap: 3,
   },
   metaItemBorder: {
@@ -347,7 +348,7 @@ const styles = StyleSheet.create({
   metaLabel: {
     fontSize: 9,
     fontWeight: '700',
-    letterSpacing: 0.7,
+    letterSpacing: 0.3,
     textTransform: 'uppercase',
     lineHeight: 12,
   },
