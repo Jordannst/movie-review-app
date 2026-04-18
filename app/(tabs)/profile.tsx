@@ -17,6 +17,7 @@ import { profile } from '@/data/profile';
 import { reviews } from '@/data/reviews';
 import { Review } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTabSwipe } from '@/hooks/use-tab-swipe';
 
 const GLASS_BG = 'rgba(255,255,255,0.06)';
 const GLASS_BORDER = 'rgba(255,255,255,0.10)';
@@ -40,6 +41,7 @@ export default function ProfileScreen(): ReactElement {
   const router = useRouter();
   const textMuted = useThemeColor({}, 'textMuted');
   const accent = useThemeColor({}, 'accent');
+  const swipeHandlers = useTabSwipe();
 
   const ctaMovie = getMovieById(profile.ctaMovieId);
   const backdropSource =
@@ -68,7 +70,7 @@ export default function ProfileScreen(): ReactElement {
   }
 
   return (
-    <ThemedView style={styles.screen}>
+    <ThemedView style={styles.screen} {...swipeHandlers}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <ScrollView
           showsVerticalScrollIndicator={false}

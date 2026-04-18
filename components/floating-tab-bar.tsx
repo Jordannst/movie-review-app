@@ -6,6 +6,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -62,14 +63,22 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
               style={styles.tabBtn}>
               {/* Active pill highlight */}
               {isFocused && (
-                <View style={[styles.activePill, { backgroundColor: `${accent}1A` }]} />
+                <View style={[styles.activePill, { backgroundColor: `${accent}22` }]} />
               )}
 
               <IconSymbol
                 name={iconName}
-                size={22}
-                color={isFocused ? accent : 'rgba(255,255,255,0.30)'}
+                size={26}
+                color={isFocused ? accent : 'rgba(255,255,255,0.28)'}
               />
+
+              <ThemedText
+                style={[
+                  styles.tabLabel,
+                  { color: isFocused ? accent : 'rgba(255,255,255,0.28)' },
+                ]}>
+                {options.title ?? route.name}
+              </ThemedText>
 
               {/* Active dot indicator */}
               {isFocused && (
@@ -109,10 +118,16 @@ const styles = StyleSheet.create({
   tabBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 28,
-    paddingVertical: 12,
+    paddingHorizontal: 36,
+    paddingVertical: 16,
     position: 'relative',
-    minWidth: 72,
+    minWidth: 90,
+    gap: 4,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   activePill: {
     position: 'absolute',

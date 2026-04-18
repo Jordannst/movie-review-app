@@ -16,6 +16,7 @@ import { ThemedView } from '@/components/themed-view';
 import { featuredMovie, movies } from '@/data/movies';
 import { profile } from '@/data/profile';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTabSwipe } from '@/hooks/use-tab-swipe';
 
 const SECTION_ENTER_DURATION = 280;
 const ITEM_STAGGER = 45;
@@ -47,6 +48,7 @@ export default function HomeScreen(): ReactElement {
   const textMuted = useThemeColor({}, 'textMuted');
   const text = useThemeColor({}, 'text');
   const [query, setQuery] = useState('');
+  const swipeHandlers = useTabSwipe();
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredMovies = useMemo(
@@ -77,7 +79,7 @@ export default function HomeScreen(): ReactElement {
   function handleDiscoverPress(): void {}
 
   return (
-    <ThemedView style={styles.screen}>
+    <ThemedView style={styles.screen} {...swipeHandlers}>
       {/* ── Ambient backdrop: film colour aura, fades to dark ───────── */}
       <View style={styles.ambientWrap}>
         <Image
