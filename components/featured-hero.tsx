@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { type ReactElement } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -30,7 +31,12 @@ export function FeaturedHero({
   return (
     <View style={[styles.container, { borderColor: border }, style]}>
       <Image source={{ uri: movie.backdropUrl }} style={styles.backdrop} contentFit="cover" />
-      <View style={styles.overlay} />
+      {/* Gradient overlay: light at top, heavy at bottom → melts into screen bg */}
+      <LinearGradient
+        colors={['rgba(11,13,18,0.20)', 'rgba(11,13,18,0.55)', '#0B0D12']}
+        locations={[0, 0.55, 1]}
+        style={styles.overlay}
+      />
 
       <View style={styles.content}>
         <View style={styles.textBlock}>
@@ -78,8 +84,6 @@ const styles = StyleSheet.create({
   container: {
     minHeight: 420,
     overflow: 'hidden',
-    borderRadius: 28,
-    borderWidth: 1,
     justifyContent: 'flex-end',
   },
   backdrop: {
@@ -87,7 +91,6 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(11, 13, 18, 0.62)',
   },
   content: {
     gap: 14,

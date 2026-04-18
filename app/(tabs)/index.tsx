@@ -78,18 +78,18 @@ export default function HomeScreen(): ReactElement {
 
   return (
     <ThemedView style={styles.screen}>
-      {/* ── Ambient backdrop: film colours fade to dark at ~58% screen height ─ */}
+      {/* ── Ambient backdrop: film colour aura, fades to dark ───────── */}
       <View style={styles.ambientWrap}>
         <Image
           source={{ uri: featuredMovie.backdropUrl }}
-          style={StyleSheet.absoluteFillObject}
+          style={[StyleSheet.absoluteFillObject, { opacity: 0.45 }]}
           contentFit="cover"
-          blurRadius={50}
+          blurRadius={40}
         />
-        {/* Gradient: transparent at top → solid #0B0D12 at bottom */}
+        {/* 3-stage gradient: soft at top → heavier mid → solid dark bottom */}
         <LinearGradient
-          colors={['transparent', 'transparent', '#0B0D12']}
-          locations={[0, 0.35, 1]}
+          colors={['rgba(11,13,18,0.25)', 'rgba(11,13,18,0.50)', '#0B0D12']}
+          locations={[0, 0.50, 1]}
           style={StyleSheet.absoluteFillObject}
         />
       </View>
@@ -107,7 +107,6 @@ export default function HomeScreen(): ReactElement {
                 movie={featuredMovie}
                 actionLabel="View Details"
                 onActionPress={() => handleOpenMovie(featuredMovie.id)}
-                style={{ borderRadius: 0, borderWidth: 0 }}
               />
             </Animated.View>
           ) : null}
@@ -245,7 +244,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 40,
-    gap: 16,
+    gap: 12,
   },
 
   // Hero — full-bleed, no horizontal padding
