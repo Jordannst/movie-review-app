@@ -247,9 +247,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  // Hero — full-bleed, no horizontal padding
+  // Hero — full-bleed, bleeds into next section (negative margin cancels ScrollView gap)
   heroWrap: {
     marginHorizontal: 0,
+    marginBottom: -12,
   },
 
   // Greeting row — compact, 1-2 lines max
