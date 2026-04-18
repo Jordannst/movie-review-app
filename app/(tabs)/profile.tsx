@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingBottom: 48,
+    paddingBottom: 40,
   },
 
   // Hero header

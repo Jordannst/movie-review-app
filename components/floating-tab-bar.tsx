@@ -22,7 +22,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   const accent = Colors[colorScheme ?? 'dark'].accent;
 
   return (
-    <View style={[styles.wrapper, { bottom: Math.max(insets.bottom, 12) + 4 }]}
+    <View style={[styles.wrapper, { bottom: Math.max(insets.bottom, 10) + 2 }]}
       pointerEvents="box-none">
       <BlurView
         intensity={Platform.OS === 'android' ? 0 : 60}
@@ -68,7 +68,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
 
               <IconSymbol
                 name={iconName}
-                size={26}
+                size={22}
                 color={isFocused ? accent : 'rgba(255,255,255,0.28)'}
               />
 
@@ -118,25 +118,25 @@ const styles = StyleSheet.create({
   tabBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 36,
-    paddingVertical: 16,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
     position: 'relative',
-    minWidth: 90,
-    gap: 4,
+    minWidth: 76,
+    gap: 3,
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
   activePill: {
     position: 'absolute',
-    inset: 6,
+    inset: 5,
     borderRadius: 999,
   },
   activeDot: {
     position: 'absolute',
-    bottom: 5,
+    bottom: 4,
     width: 4,
     height: 4,
     borderRadius: 2,
