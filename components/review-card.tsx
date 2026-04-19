@@ -1,6 +1,8 @@
-import { type ReactElement } from 'react';
+import { BlurView } from 'expo-blur';
+import { type ReactElement, useEffect, useState } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { MotionPressable } from '@/components/motion-pressable';
 import { RatingStars } from '@/components/rating-stars';
 import { ThemedText } from '@/components/themed-text';
 import { Review } from '@/data/types';
@@ -28,6 +30,13 @@ export function ReviewCard({ review, style }: ReviewCardProps): ReactElement {
   const border = useThemeColor({}, 'border');
   const textMuted = useThemeColor({}, 'textMuted');
   const accent = useThemeColor({}, 'accent');
+  const [isSpoilerRevealed, setIsSpoilerRevealed] = useState(() => !review.containsSpoilers);
+
+  useEffect(() => {
+    setIsSpoilerRevealed(!review.containsSpoilers);
+  }, [review.containsSpoilers, review.id]);
+
+  const isSpoilerHidden = Boolean(review.containsSpoilers && !isSpoilerRevealed);
 
   return (
     <View style={[styles.card, { backgroundColor: surface, borderColor: border }, style]}>
@@ -47,8 +56,50 @@ export function ReviewCard({ review, style }: ReviewCardProps): ReactElement {
       <RatingStars rating={review.rating} />
 
       <View style={styles.body}>
-        <ThemedText type="defaultSemiBold">{review.title}</ThemedText>
-        <ThemedText style={[styles.copy, { color: textMuted }]}>{review.body}</ThemedText>
+        {isSpoilerHidden ? (
+          <>
+            <View
+              style={[
+                styles.spoilerToolbar,
+                { backgroundColor: surfaceMuted, borderColor: border },
+              ]}>
+              <View style={styles.spoilerToolbarCopy}>
+                <ThemedText style={styles.spoilerToolbarTitle}>Blurred spoiler review</ThemedText>
+                <ThemedText style={[styles.spoilerToolbarText, { color: textMuted }]}>
+                  Tap reveal only if you want the full title and review text.
+                </ThemedText>
+              </View>
+            </View>
+
+            <View style={[styles.spoilerPreview, { borderColor: border }]}>
+              <View pointerEvents="none" style={styles.spoilerPreviewContent}>
+                <ThemedText type="defaultSemiBold">{review.title}</ThemedText>
+                <ThemedText style={[styles.copy, { color: textMuted }]}>{review.body}</ThemedText>
+              </View>
+              <BlurView intensity={55} tint="dark" style={styles.spoilerBlur} />
+              <View style={styles.spoilerScrim} pointerEvents="none" />
+            </View>
+
+            <MotionPressable
+              accessibilityLabel="Reveal spoiler review"
+              accessibilityRole="button"
+              haptic
+              onPress={() => setIsSpoilerRevealed(true)}
+              style={[
+                styles.revealButton,
+                { backgroundColor: surfaceMuted, borderColor: border },
+              ]}>
+              <ThemedText style={[styles.revealButtonText, { color: accent }]}>
+                Reveal spoiler
+              </ThemedText>
+            </MotionPressable>
+          </>
+        ) : (
+          <>
+            <ThemedText type="defaultSemiBold">{review.title}</ThemedText>
+            <ThemedText style={[styles.copy, { color: textMuted }]}>{review.body}</ThemedText>
+          </>
+        )}
       </View>
     </View>
   );
@@ -89,6 +140,55 @@ const styles = StyleSheet.create({
   },
   body: {
     gap: 8,
+  },
+  spoilerToolbar: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  spoilerToolbarCopy: {
+    gap: 3,
+  },
+  spoilerToolbarTitle: {
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: '700',
+  },
+  spoilerToolbarText: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  spoilerPreview: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 18,
+    borderWidth: 1,
+    minHeight: 116,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  spoilerPreviewContent: {
+    gap: 8,
+    padding: 14,
+  },
+  spoilerBlur: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  spoilerScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(11,13,18,0.22)',
+  },
+  revealButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+  },
+  revealButtonText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
   },
   copy: {
     fontSize: 14,

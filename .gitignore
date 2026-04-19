@@ -30,8 +30,11 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files — JANGAN commit file .env asli!
+.env
+.env.local
 .env*.local
+# .env.example boleh di-commit sebagai template
 
 # typescript
 *.tsbuildinfo
@@ -44,3 +47,4 @@ app-example
 # generated native folders
 /ios
 /android
+/docs

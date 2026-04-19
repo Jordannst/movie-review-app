@@ -164,6 +164,7 @@ export default function ReviewFormScreen(): ReactElement {
 
   const [rating, setRating] = useState(4);
   const [comment, setComment] = useState('');
+  const [containsSpoilers, setContainsSpoilers] = useState(false);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [submitted, setSubmitted] = useState(false);
 
@@ -209,6 +210,14 @@ export default function ReviewFormScreen(): ReactElement {
               In the next phase, this will save to Supabase and appear on{' '}
               <ThemedText style={{ fontWeight: '700' }}>{movieTitle}&apos;s</ThemedText> detail page automatically.
             </ThemedText>
+            {containsSpoilers ? (
+              <View style={[styles.spoilerStatusPill, { borderColor: accent }]}>
+                <MaterialIcons color={accent} name="visibility-off" size={16} />
+                <ThemedText style={[styles.spoilerStatusText, { color: accent }]}>
+                  This review is marked as containing spoilers.
+                </ThemedText>
+              </View>
+            ) : null}
             <PrimaryButton label="Back to Movie" onPress={() => router.back()} />
           </BlurView>
         </Animated.View>
@@ -286,8 +295,53 @@ export default function ReviewFormScreen(): ReactElement {
           </View>
         </Animated.View>
 
-        {/* ── 4. Text area ─────────────────────────────────── */}
+        {/* ── 4. Spoiler warning ───────────────────────────── */}
         <Animated.View entering={FadeInDown.duration(300).delay(200).easing(Easing.out(Easing.cubic))} style={styles.section}>
+          <ThemedText style={[styles.sectionLabel, { color: textMuted }]}>Spoiler warning</ThemedText>
+          <MotionPressable
+            accessibilityRole="switch"
+            accessibilityState={{ checked: containsSpoilers }}
+            haptic
+            onPress={() => setContainsSpoilers((current) => !current)}
+            pressScale={0.985}
+            style={[
+              styles.spoilerToggle,
+              containsSpoilers
+                ? { borderColor: accent, backgroundColor: 'rgba(167,139,250,0.12)' }
+                : null,
+            ]}>
+            <View style={styles.spoilerToggleCopy}>
+              <ThemedText type="defaultSemiBold">Blur this review for readers</ThemedText>
+              <ThemedText style={[styles.spoilerToggleText, { color: textMuted }]}>
+                Use this if you mention major plot turns, endings, or reveals.
+              </ThemedText>
+            </View>
+
+            <View
+              style={[
+                styles.spoilerTogglePill,
+                containsSpoilers
+                  ? { borderColor: accent, backgroundColor: accent }
+                  : null,
+              ]}>
+              <MaterialIcons
+                color={containsSpoilers ? '#0B0D12' : textMuted}
+                name={containsSpoilers ? 'visibility-off' : 'visibility'}
+                size={16}
+              />
+              <ThemedText
+                style={[
+                  styles.spoilerTogglePillText,
+                  { color: containsSpoilers ? '#0B0D12' : textMuted },
+                ]}>
+                {containsSpoilers ? 'On' : 'Off'}
+              </ThemedText>
+            </View>
+          </MotionPressable>
+        </Animated.View>
+
+        {/* ── 5. Text area ─────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.duration(300).delay(240).easing(Easing.out(Easing.cubic))} style={styles.section}>
           <View style={styles.textareaHeader}>
             <ThemedText style={[styles.sectionLabel, { color: textMuted }]}>Your review</ThemedText>
             <ThemedText style={[styles.charCount, { color: charsLeft < 50 ? '#f97316' : textMuted }]}>
@@ -307,9 +361,9 @@ export default function ReviewFormScreen(): ReactElement {
           />
         </Animated.View>
 
-        {/* ── 5. Submit CTA card ───────────────────────────── */}
+        {/* ── 6. Submit CTA card ───────────────────────────── */}
         <Animated.View
-          entering={FadeInDown.duration(300).delay(260).easing(Easing.out(Easing.cubic))}
+          entering={FadeInDown.duration(300).delay(300).easing(Easing.out(Easing.cubic))}
           style={styles.ctaWrap}>
           <LinearGradient
             colors={['rgba(124,58,237,0.18)', 'rgba(59,130,246,0.10)']}
@@ -320,7 +374,8 @@ export default function ReviewFormScreen(): ReactElement {
               <ThemedText style={[styles.ctaContext, { color: textMuted }]}>
                 Your review for{' '}
                 <ThemedText style={[styles.ctaMovieTitle, { color: accent }]}>{movieTitle}</ThemedText>{' '}
-                will appear in the community feed.
+                will appear in the community feed
+                {containsSpoilers ? ' with a spoiler warning.' : '.'}
               </ThemedText>
               <PrimaryButton disabled={!canSubmit} label="Submit Review" onPress={handleSubmit} />
             </BlurView>
@@ -483,6 +538,42 @@ const styles = StyleSheet.create({
   tagTextSelected: {
     fontWeight: '700',
   },
+  spoilerToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    backgroundColor: GLASS_BG,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  spoilerToggleCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  spoilerToggleText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  spoilerTogglePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  spoilerTogglePillText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+  },
 
   // Textarea
   textareaHeader: {
@@ -565,5 +656,21 @@ const styles = StyleSheet.create({
   successCopy: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  spoilerStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    backgroundColor: 'rgba(167,139,250,0.10)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  spoilerStatusText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
   },
 });
