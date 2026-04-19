@@ -11,6 +11,7 @@ export type Movie = {
   backdropUrl: string;
   averageRating: number;
   reviewCount: number;
+  isFeatured?: boolean;
 };
 
 export type Review = {
@@ -20,6 +21,17 @@ export type Review = {
   title: string;
   body: string;
   rating: number;
-  createdAt: string;
+  tags?: string[];
   containsSpoilers?: boolean;
+  createdAt: string;
+};
+
+export type Profile = {
+  id: string;
+  name: string;
+  username?: string;
+  initials: string;
+  bio: string;
+  badgeLabel: string;
+  favoriteGenres: string[];
 };
