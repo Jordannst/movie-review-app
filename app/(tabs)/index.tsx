@@ -3,7 +3,7 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { type ReactElement, useMemo, useState } from 'react';
+import { startTransition, type ReactElement, useEffect, useMemo, useState } from 'react';
 import { Dimensions, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,12 +11,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeaturedHero } from '@/components/featured-hero';
 import { MotionPressable } from '@/components/motion-pressable';
 import { MovieCard } from '@/components/movie-card';
+import { PrimaryButton } from '@/components/primary-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { featuredMovie, movies } from '@/data/movies';
 import { profile } from '@/data/profile';
+import { Movie } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTabSwipe } from '@/hooks/use-tab-swipe';
+import { getFeaturedMovie, getMovies } from '@/services/movies';
 
 const SECTION_ENTER_DURATION = 280;
 const ITEM_STAGGER = 45;
@@ -48,13 +50,51 @@ export default function HomeScreen(): ReactElement {
   const textMuted = useThemeColor({}, 'textMuted');
   const text = useThemeColor({}, 'text');
   const [query, setQuery] = useState('');
+  const [movieItems, setMovieItems] = useState<Movie[]>([]);
+  const [featuredMovie, setFeaturedMovie] = useState<Movie | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadVersion, setReloadVersion] = useState(0);
   const swipeHandlers = useTabSwipe();
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadHomeMovies() {
+      setIsLoading(true);
+      setLoadError(null);
+
+      try {
+        const [moviesData, featured] = await Promise.all([getMovies(), getFeaturedMovie()]);
+
+        if (!isActive) return;
+
+        startTransition(() => {
+          setMovieItems(moviesData);
+          setFeaturedMovie(featured ?? moviesData[0] ?? null);
+        });
+      } catch (error) {
+        if (!isActive) return;
+        setLoadError(error instanceof Error ? error.message : 'Failed to load movies from Supabase.');
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadHomeMovies();
+
+    return () => {
+      isActive = false;
+    };
+  }, [reloadVersion]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredMovies = useMemo(
     () =>
       normalizedQuery
-        ? movies.filter((movie) => {
+        ? movieItems.filter((movie) => {
             const searchFields = [
               movie.title,
               movie.tagline,
@@ -65,8 +105,8 @@ export default function HomeScreen(): ReactElement {
             ];
             return searchFields.some((field) => field.toLowerCase().includes(normalizedQuery));
           })
-        : movies,
-    [normalizedQuery]
+        : movieItems,
+    [movieItems, normalizedQuery]
   );
   const movieCountLabel = `${filteredMovies.length} movie${filteredMovies.length === 1 ? '' : 's'}`;
 
@@ -78,16 +118,24 @@ export default function HomeScreen(): ReactElement {
 
   function handleDiscoverPress(): void {}
 
+  function handleRetry(): void {
+    setReloadVersion((current) => current + 1);
+  }
+
+  const isInitialLoad = isLoading && movieItems.length === 0 && !featuredMovie;
+
   return (
     <ThemedView style={styles.screen} {...swipeHandlers}>
       {/* ── Ambient backdrop: film colour aura, fades to dark ───────── */}
       <View style={styles.ambientWrap}>
-        <Image
-          source={{ uri: featuredMovie.backdropUrl }}
-          style={[StyleSheet.absoluteFillObject, { opacity: 0.45 }]}
-          contentFit="cover"
-          blurRadius={40}
-        />
+        {featuredMovie ? (
+          <Image
+            source={{ uri: featuredMovie.backdropUrl }}
+            style={[StyleSheet.absoluteFillObject, { opacity: 0.45 }]}
+            contentFit="cover"
+            blurRadius={40}
+          />
+        ) : null}
         {/* 3-stage gradient: soft at top → heavier mid → solid dark bottom */}
         <LinearGradient
           colors={['rgba(11,13,18,0.25)', 'rgba(11,13,18,0.50)', '#0B0D12']}
@@ -103,7 +151,7 @@ export default function HomeScreen(): ReactElement {
           style={styles.scroll}>
 
           {/* ── 1. FEATURED HERO — first thing the user sees ──── */}
-          {!normalizedQuery ? (
+          {!normalizedQuery && featuredMovie ? (
             <Animated.View entering={FadeIn.duration(420)} style={styles.heroWrap}>
               <FeaturedHero
                 movie={featuredMovie}
@@ -197,7 +245,28 @@ export default function HomeScreen(): ReactElement {
           </Animated.View>
 
           {/* ── 6. MOVIE LIST ─────────────────────────────────── */}
-          {filteredMovies.length > 0 ? (
+          {isInitialLoad ? (
+            <BlurView
+              intensity={30}
+              tint="dark"
+              style={styles.emptyState}>
+              <ThemedText type="subtitle">Loading movies</ThemedText>
+              <ThemedText style={[styles.emptyStateText, { color: textMuted }]}>
+                Pulling the latest movie catalog from Supabase.
+              </ThemedText>
+            </BlurView>
+          ) : loadError ? (
+            <BlurView
+              intensity={30}
+              tint="dark"
+              style={styles.emptyState}>
+              <ThemedText type="subtitle">Couldn&apos;t load movies</ThemedText>
+              <ThemedText style={[styles.emptyStateText, { color: textMuted }]}>
+                {loadError}
+              </ThemedText>
+              <PrimaryButton label="Retry" onPress={handleRetry} />
+            </BlurView>
+          ) : filteredMovies.length > 0 ? (
             <View style={styles.list}>
               {filteredMovies.map((movie, index) => (
                 <Animated.View

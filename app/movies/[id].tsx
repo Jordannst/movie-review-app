@@ -2,18 +2,20 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { type ReactElement } from 'react';
+import { startTransition, type ReactElement, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MotionPressable } from '@/components/motion-pressable';
 import { PrimaryButton } from '@/components/primary-button';
 import { ReviewCard } from '@/components/review-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { getMovieById } from '@/data/movies';
-import { getReviewsForMovie } from '@/data/reviews';
+import { Movie, Review } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { getMovieById } from '@/services/movies';
+import { getReviewsForMovie } from '@/services/reviews';
 
 const SECTION_ENTER_DURATION = 300;
 const ITEM_STAGGER = 40;
@@ -38,7 +40,12 @@ export default function MovieDetailScreen(): ReactElement {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string | string[] }>();
   const movieId = Array.isArray(id) ? id[0] : id;
-  const movie = movieId ? getMovieById(movieId) : undefined;
+  const [movie, setMovie] = useState<Movie | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isMovieLoading, setIsMovieLoading] = useState(true);
+  const [movieError, setMovieError] = useState<string | null>(null);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [reloadVersion, setReloadVersion] = useState(0);
   const surface = useThemeColor({}, 'surface');
   const border = useThemeColor({}, 'border');
   const textMuted = useThemeColor({}, 'textMuted');
@@ -46,8 +53,102 @@ export default function MovieDetailScreen(): ReactElement {
   const insets = useSafeAreaInsets();
   const overlayTop = insets.top + 12;
 
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadMovieDetail() {
+      if (!movieId) {
+        setMovie(null);
+        setReviews([]);
+        setMovieError(null);
+        setReviewsError(null);
+        setIsMovieLoading(false);
+        return;
+      }
+
+      setIsMovieLoading(true);
+      setMovieError(null);
+      setReviewsError(null);
+
+      try {
+        const movieResult = await getMovieById(movieId);
+
+        if (!isActive) return;
+
+        startTransition(() => {
+          setMovie(movieResult);
+        });
+
+        if (!movieResult) {
+          setReviews([]);
+          return;
+        }
+
+        try {
+          const reviewResults = await getReviewsForMovie(movieId);
+
+          if (!isActive) return;
+
+          startTransition(() => {
+            setReviews(reviewResults);
+          });
+        } catch (error) {
+          if (!isActive) return;
+          setReviews([]);
+          setReviewsError(
+            error instanceof Error ? error.message : 'Failed to load reviews from Supabase.'
+          );
+        }
+      } catch (error) {
+        if (!isActive) return;
+        setMovieError(error instanceof Error ? error.message : 'Failed to load movie details from Supabase.');
+      } finally {
+        if (isActive) {
+          setIsMovieLoading(false);
+        }
+      }
+    }
+
+    void loadMovieDetail();
+
+    return () => {
+      isActive = false;
+    };
+  }, [movieId, reloadVersion]);
+
   function handleBackToHome(): void {
     router.replace('/');
+  }
+
+  function handleRetry(): void {
+    setReloadVersion((current) => current + 1);
+  }
+
+  if (isMovieLoading) {
+    return (
+      <ThemedView style={styles.missingScreen}>
+        <View style={[styles.missingCard, { backgroundColor: surface, borderColor: border }]}>
+          <ThemedText type="title">Loading movie</ThemedText>
+          <ThemedText style={[styles.missingCopy, { color: textMuted }]}>
+            Pulling movie details and reviews from Supabase.
+          </ThemedText>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  if (movieError) {
+    return (
+      <ThemedView style={styles.missingScreen}>
+        <View style={[styles.missingCard, { backgroundColor: surface, borderColor: border }]}>
+          <ThemedText type="title">Couldn&apos;t load movie</ThemedText>
+          <ThemedText style={[styles.missingCopy, { color: textMuted }]}>
+            {movieError}
+          </ThemedText>
+          <PrimaryButton label="Retry" onPress={handleRetry} />
+        </View>
+      </ThemedView>
+    );
   }
 
   if (!movie) {
@@ -56,7 +157,7 @@ export default function MovieDetailScreen(): ReactElement {
         <View style={[styles.missingCard, { backgroundColor: surface, borderColor: border }]}>
           <ThemedText type="title">Movie not found</ThemedText>
           <ThemedText style={[styles.missingCopy, { color: textMuted }]}>
-            The selected movie doesn&apos;t exist in the local demo data yet.
+            The selected movie doesn&apos;t exist in Supabase.
           </ThemedText>
           <PrimaryButton label="Back to Home" onPress={handleBackToHome} />
         </View>
@@ -65,15 +166,19 @@ export default function MovieDetailScreen(): ReactElement {
   }
 
   const selectedMovie = movie;
-  const reviews = getReviewsForMovie(selectedMovie.id);
   const reviewCountLabel = `${selectedMovie.reviewCount} reviews`;
   const ratingLabel = selectedMovie.averageRating.toFixed(1);
+  const reviewPreview = reviews.slice(0, 2);
 
   function handleWriteReview(): void {
     router.push({
       pathname: '/reviews/new',
       params: { movieId: selectedMovie.id },
     });
+  }
+
+  function handleOpenAllReviews(): void {
+    router.push(`/movies/${selectedMovie.id}/reviews`);
   }
 
   return (
@@ -187,17 +292,45 @@ export default function MovieDetailScreen(): ReactElement {
               <ThemedText style={styles.sectionLabel}>Community</ThemedText>
               <ThemedText type="subtitle">Recent reviews preview</ThemedText>
             </View>
-            <ThemedText style={[styles.reviewMeta, { color: textMuted }]}>{reviewCountLabel}</ThemedText>
+            <View style={styles.sectionHeaderActions}>
+              <ThemedText style={[styles.reviewMeta, { color: textMuted }]}>{reviewCountLabel}</ThemedText>
+              <MotionPressable
+                accessibilityLabel="Open all reviews"
+                accessibilityRole="button"
+                haptic
+                onPress={handleOpenAllReviews}
+                pressScale={0.97}
+                style={[styles.inlineAction, { borderColor: border, backgroundColor: surface }]}>
+                <ThemedText style={[styles.inlineActionText, { color: accent }]}>See all</ThemedText>
+              </MotionPressable>
+            </View>
           </Animated.View>
 
           <View style={styles.reviewList}>
-            {reviews.map((review, index) => (
-              <Animated.View
-                key={review.id}
-                entering={getEnterAnimation(310 + index * ITEM_STAGGER)}>
-                <ReviewCard review={review} />
-              </Animated.View>
-            ))}
+            {reviewsError ? (
+              <View style={[styles.inlineNotice, { backgroundColor: surface, borderColor: border }]}>
+                <ThemedText type="defaultSemiBold">Couldn&apos;t load reviews</ThemedText>
+                <ThemedText style={[styles.inlineNoticeCopy, { color: textMuted }]}>
+                  {reviewsError}
+                </ThemedText>
+                <PrimaryButton label="Retry" onPress={handleRetry} />
+              </View>
+            ) : reviewPreview.length > 0 ? (
+              reviewPreview.map((review, index) => (
+                <Animated.View
+                  key={review.id}
+                  entering={getEnterAnimation(310 + index * ITEM_STAGGER)}>
+                  <ReviewCard review={review} />
+                </Animated.View>
+              ))
+            ) : (
+              <View style={[styles.inlineNotice, { backgroundColor: surface, borderColor: border }]}>
+                <ThemedText type="defaultSemiBold">No reviews yet</ThemedText>
+                <ThemedText style={[styles.inlineNoticeCopy, { color: textMuted }]}>
+                  Supabase doesn&apos;t have any reviews for this movie yet.
+                </ThemedText>
+              </View>
+            )}
           </View>
 
         </View>{/* end contentCard */}
@@ -474,9 +607,35 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '600',
   },
+  sectionHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  inlineAction: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  inlineActionText: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+  },
   reviewList: {
     gap: 12,
     paddingHorizontal: 16,
+  },
+  inlineNotice: {
+    gap: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+  },
+  inlineNoticeCopy: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 
   // Missing screen

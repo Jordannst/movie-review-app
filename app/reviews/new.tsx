@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { type ReactElement, useEffect, useRef, useState } from 'react';
+import { startTransition, type ReactElement, useEffect, useRef, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -25,8 +25,9 @@ import { MotionPressable } from '@/components/motion-pressable';
 import { PrimaryButton } from '@/components/primary-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { getMovieById } from '@/data/movies';
+import { Movie } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { getMovieById } from '@/services/movies';
 
 // ── Constants ─────────────────────────────────────────────
 const MAX_RATING = 5;
@@ -160,7 +161,10 @@ export default function ReviewFormScreen(): ReactElement {
   const router = useRouter();
   const { movieId } = useLocalSearchParams<{ movieId?: string | string[] }>();
   const resolvedMovieId = Array.isArray(movieId) ? movieId[0] : movieId;
-  const movie = resolvedMovieId ? getMovieById(resolvedMovieId) : undefined;
+  const [movie, setMovie] = useState<Movie | null>(null);
+  const [isMovieLoading, setIsMovieLoading] = useState(true);
+  const [movieError, setMovieError] = useState<string | null>(null);
+  const [reloadVersion, setReloadVersion] = useState(0);
 
   const [rating, setRating] = useState(4);
   const [comment, setComment] = useState('');
@@ -172,12 +176,55 @@ export default function ReviewFormScreen(): ReactElement {
   const textMuted = useThemeColor({}, 'textMuted');
   const text = useThemeColor({}, 'text');
 
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadMovie() {
+      if (!resolvedMovieId) {
+        setMovie(null);
+        setMovieError(null);
+        setIsMovieLoading(false);
+        return;
+      }
+
+      setIsMovieLoading(true);
+      setMovieError(null);
+
+      try {
+        const movieResult = await getMovieById(resolvedMovieId);
+
+        if (!isActive) return;
+
+        startTransition(() => {
+          setMovie(movieResult);
+        });
+      } catch (error) {
+        if (!isActive) return;
+        setMovieError(error instanceof Error ? error.message : 'Failed to load movie details from Supabase.');
+      } finally {
+        if (isActive) {
+          setIsMovieLoading(false);
+        }
+      }
+    }
+
+    void loadMovie();
+
+    return () => {
+      isActive = false;
+    };
+  }, [resolvedMovieId, reloadVersion]);
+
   const ratingLabel = RATING_LABELS[rating] ?? '';
   const charsLeft = MAX_CHARS - comment.length;
   const canSubmit = comment.trim().length > 0;
 
   const movieTitle = movie?.title ?? 'this film';
   const movieYear = movie?.year ? ` · ${movie.year}` : '';
+
+  function handleRetryMovie(): void {
+    setReloadVersion((current) => current + 1);
+  }
 
   function toggleTag(tag: string): void {
     setSelectedTags((prev) => {
@@ -207,8 +254,8 @@ export default function ReviewFormScreen(): ReactElement {
             <ThemedText style={[styles.successKicker, { color: accent }]}>Review submitted</ThemedText>
             <ThemedText type="title">Nice — your take is in! 🎬</ThemedText>
             <ThemedText style={[styles.successCopy, { color: textMuted }]}>
-              In the next phase, this will save to Supabase and appear on{' '}
-              <ThemedText style={{ fontWeight: '700' }}>{movieTitle}&apos;s</ThemedText> detail page automatically.
+              This draft is still local to the current prototype flow, but the movie context now comes from Supabase for{' '}
+              <ThemedText style={{ fontWeight: '700' }}>{movieTitle}</ThemedText>.
             </ThemedText>
             {containsSpoilers ? (
               <View style={[styles.spoilerStatusPill, { borderColor: accent }]}>
@@ -221,6 +268,53 @@ export default function ReviewFormScreen(): ReactElement {
             <PrimaryButton label="Back to Movie" onPress={() => router.back()} />
           </BlurView>
         </Animated.View>
+      </ThemedView>
+    );
+  }
+
+  if (isMovieLoading) {
+    return (
+      <ThemedView style={styles.screen}>
+        <View style={styles.statusWrap}>
+          <BlurView intensity={30} tint="dark" style={styles.statusCard}>
+            <ThemedText type="title">Loading movie</ThemedText>
+            <ThemedText style={[styles.statusCopy, { color: textMuted }]}>
+              Pulling the selected movie details from Supabase before you write.
+            </ThemedText>
+          </BlurView>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  if (movieError) {
+    return (
+      <ThemedView style={styles.screen}>
+        <View style={styles.statusWrap}>
+          <BlurView intensity={30} tint="dark" style={styles.statusCard}>
+            <ThemedText type="title">Couldn&apos;t load movie</ThemedText>
+            <ThemedText style={[styles.statusCopy, { color: textMuted }]}>
+              {movieError}
+            </ThemedText>
+            <PrimaryButton label="Retry" onPress={handleRetryMovie} />
+          </BlurView>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  if (!movie) {
+    return (
+      <ThemedView style={styles.screen}>
+        <View style={styles.statusWrap}>
+          <BlurView intensity={30} tint="dark" style={styles.statusCard}>
+            <ThemedText type="title">Movie not found</ThemedText>
+            <ThemedText style={[styles.statusCopy, { color: textMuted }]}>
+              The selected movie could not be found in Supabase.
+            </ThemedText>
+            <PrimaryButton label="Back" onPress={() => router.back()} />
+          </BlurView>
+        </View>
       </ThemedView>
     );
   }
@@ -390,6 +484,23 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#0B0D12',
+  },
+  statusWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  statusCard: {
+    gap: 14,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    padding: 20,
+    backgroundColor: GLASS_BG,
+  },
+  statusCopy: {
+    fontSize: 15,
+    lineHeight: 22,
   },
   scroll: { flex: 1 },
   content: {
