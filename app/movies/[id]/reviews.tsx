@@ -2,8 +2,22 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { startTransition, type ReactElement, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import {
+  startTransition,
+  type ReactElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,12 +29,12 @@ import { ThemedView } from '@/components/themed-view';
 import { Movie, Review } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getMovieById } from '@/services/movies';
-import { getReviewsForMovie } from '@/services/reviews';
+import { getReviewsForMovie, type GetMovieReviewsOptions } from '@/services/reviews';
 
 const SECTION_ENTER_DURATION = 280;
-const ITEM_STAGGER = 40;
 const BACKDROP_HEIGHT = 300;
-const CARD_START = 232;
+const CARD_START = 270;
+const REVIEW_PAGE_SIZE = 12;
 const GLASS_BORDER = 'rgba(255,255,255,0.10)';
 const GLASS_BG = 'rgba(255,255,255,0.05)';
 
@@ -39,13 +53,36 @@ function formatRuntime(minutes: number): string {
   return remainder > 0 ? `${hours}h ${remainder}m` : `${hours}h`;
 }
 
-function getReviewTimestamp(review: Review): number {
-  return new Date(review.createdAt).getTime();
+function getViewModeQuery(
+  viewMode: ViewMode
+): Pick<GetMovieReviewsOptions, 'sortBy' | 'excludeSpoilers'> {
+  if (viewMode === 'top-rated') {
+    return { sortBy: 'top-rated', excludeSpoilers: false };
+  }
+
+  if (viewMode === 'spoiler-free') {
+    return { sortBy: 'newest', excludeSpoilers: true };
+  }
+
+  return { sortBy: 'newest', excludeSpoilers: false };
+}
+
+function getModeLabel(viewMode: ViewMode): string {
+  if (viewMode === 'top-rated') {
+    return 'Top rated first';
+  }
+
+  if (viewMode === 'spoiler-free') {
+    return 'Spoiler-free only';
+  }
+
+  return 'Newest first';
 }
 
 export default function FullMovieReviewsScreen(): ReactElement {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const listRef = useRef<FlatList<Review>>(null);
   const { id } = useLocalSearchParams<{ id: string | string[] }>();
   const movieId = Array.isArray(id) ? id[0] : id;
 
@@ -56,28 +93,35 @@ export default function FullMovieReviewsScreen(): ReactElement {
 
   const [movie, setMovie] = useState<Movie | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextPage, setNextPage] = useState(2);
+  const [isMovieLoading, setIsMovieLoading] = useState(true);
+  const [isInitialReviewsLoading, setIsInitialReviewsLoading] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [movieError, setMovieError] = useState<string | null>(null);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>('all');
+  const [revealedSpoilerReviewIds, setRevealedSpoilerReviewIds] = useState<
+    Record<string, boolean>
+  >({});
+
+  const reviewQuery = useMemo(() => getViewModeQuery(viewMode), [viewMode]);
 
   useEffect(() => {
     let isActive = true;
 
-    async function loadScreen() {
+    async function loadMovie() {
       if (!movieId) {
         setMovie(null);
-        setReviews([]);
         setMovieError(null);
-        setReviewsError(null);
-        setIsLoading(false);
+        setIsMovieLoading(false);
         return;
       }
 
-      setIsLoading(true);
+      setIsMovieLoading(true);
       setMovieError(null);
-      setReviewsError(null);
 
       try {
         const movieResult = await getMovieById(movieId);
@@ -87,79 +131,182 @@ export default function FullMovieReviewsScreen(): ReactElement {
         startTransition(() => {
           setMovie(movieResult);
         });
-
-        if (!movieResult) {
-          setReviews([]);
-          return;
-        }
-
-        try {
-          const reviewResults = await getReviewsForMovie(movieId);
-
-          if (!isActive) return;
-
-          startTransition(() => {
-            setReviews(reviewResults);
-          });
-        } catch (error) {
-          if (!isActive) return;
-          setReviews([]);
-          setReviewsError(
-            error instanceof Error ? error.message : 'Failed to load reviews from Supabase.'
-          );
-        }
       } catch (error) {
         if (!isActive) return;
-        setMovieError(error instanceof Error ? error.message : 'Failed to load movie details from Supabase.');
+        setMovieError(
+          error instanceof Error ? error.message : 'Failed to load movie details from Supabase.'
+        );
       } finally {
         if (isActive) {
-          setIsLoading(false);
+          setIsMovieLoading(false);
         }
       }
     }
 
-    void loadScreen();
+    void loadMovie();
 
     return () => {
       isActive = false;
     };
   }, [movieId, reloadVersion]);
 
-  function handleRetry(): void {
-    setReloadVersion((current) => current + 1);
-  }
+  useEffect(() => {
+    let isActive = true;
 
-  const visibleReviews = useMemo(() => {
-    const nextReviews = [...reviews];
+    async function loadInitialReviews() {
+      if (!movieId) {
+        setReviews([]);
+        setTotalCount(0);
+        setHasMore(false);
+        setNextPage(2);
+        setReviewsError(null);
+        setRevealedSpoilerReviewIds({});
+        setIsInitialReviewsLoading(false);
+        return;
+      }
 
-    if (viewMode === 'top-rated') {
-      return nextReviews.sort((left, right) => {
-        if (right.rating !== left.rating) {
-          return right.rating - left.rating;
-        }
-        return getReviewTimestamp(right) - getReviewTimestamp(left);
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      setIsInitialReviewsLoading(true);
+      setIsFetchingMore(false);
+      setReviewsError(null);
+      setHasMore(false);
+      setNextPage(2);
+      setRevealedSpoilerReviewIds({});
+
+      startTransition(() => {
+        setReviews([]);
+        setTotalCount(0);
       });
+
+      try {
+        const result = await getReviewsForMovie(movieId, {
+          page: 1,
+          pageSize: REVIEW_PAGE_SIZE,
+          ...reviewQuery,
+        });
+
+        if (!isActive) return;
+
+        startTransition(() => {
+          setReviews(result.reviews);
+          setTotalCount(result.totalCount);
+        });
+
+        setHasMore(result.hasMore);
+        setNextPage(2);
+      } catch (error) {
+        if (!isActive) return;
+        setReviewsError(
+          error instanceof Error ? error.message : 'Failed to load reviews from Supabase.'
+        );
+      } finally {
+        if (isActive) {
+          setIsInitialReviewsLoading(false);
+        }
+      }
     }
 
-    if (viewMode === 'spoiler-free') {
-      return nextReviews
-        .filter((review) => !review.containsSpoilers)
-        .sort((left, right) => getReviewTimestamp(right) - getReviewTimestamp(left));
+    void loadInitialReviews();
+
+    return () => {
+      isActive = false;
+    };
+  }, [movieId, reloadVersion, reviewQuery]);
+
+  const handleRetry = useCallback((): void => {
+    setReloadVersion((current) => current + 1);
+  }, []);
+
+  const handleChangeViewMode = useCallback((nextViewMode: ViewMode): void => {
+    setViewMode((current) => {
+      if (current === nextViewMode) {
+        return current;
+      }
+
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+      return nextViewMode;
+    });
+  }, []);
+
+  const handleRevealSpoiler = useCallback((reviewId: Review['id']): void => {
+    setRevealedSpoilerReviewIds((current) => {
+      if (current[reviewId]) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [reviewId]: true,
+      };
+    });
+  }, []);
+
+  const loadMoreReviews = useCallback(async (): Promise<void> => {
+    if (
+      !movieId ||
+      isInitialReviewsLoading ||
+      isFetchingMore ||
+      !hasMore ||
+      Boolean(reviewsError)
+    ) {
+      return;
     }
 
-    return nextReviews.sort((left, right) => getReviewTimestamp(right) - getReviewTimestamp(left));
-  }, [reviews, viewMode]);
+    setIsFetchingMore(true);
+    setReviewsError(null);
 
-  const modeLabel =
-    viewMode === 'top-rated'
-      ? 'Top rated first'
-      : viewMode === 'spoiler-free'
-        ? 'Spoiler-free only'
-        : 'Newest first';
+    try {
+      const result = await getReviewsForMovie(movieId, {
+        page: nextPage,
+        pageSize: REVIEW_PAGE_SIZE,
+        ...reviewQuery,
+      });
 
+      startTransition(() => {
+        setReviews((current) => {
+          const existingIds = new Set(current.map((review) => review.id));
+          const nextReviews = result.reviews.filter((review) => !existingIds.has(review.id));
+          return current.concat(nextReviews);
+        });
+        setTotalCount(result.totalCount);
+      });
+
+      setHasMore(result.hasMore);
+      setNextPage((current) => current + 1);
+    } catch (error) {
+      setReviewsError(
+        error instanceof Error ? error.message : 'Failed to load more reviews from Supabase.'
+      );
+    } finally {
+      setIsFetchingMore(false);
+    }
+  }, [
+    hasMore,
+    isFetchingMore,
+    isInitialReviewsLoading,
+    movieId,
+    nextPage,
+    reviewQuery,
+    reviewsError,
+  ]);
+
+  const renderReviewItem = useCallback(
+    ({ item }: { item: Review }) => (
+      <View style={styles.reviewItem}>
+        <ReviewCard
+          review={item}
+          isSpoilerRevealed={Boolean(revealedSpoilerReviewIds[item.id]) || !item.containsSpoilers}
+          onRevealSpoiler={handleRevealSpoiler}
+        />
+      </View>
+    ),
+    [handleRevealSpoiler, revealedSpoilerReviewIds]
+  );
+
+  const modeLabel = getModeLabel(viewMode);
   const spoilerLabel = viewMode === 'spoiler-free' ? 'Spoilers filtered out' : 'Spoilers blurred';
 
-  if (isLoading) {
+  if (isMovieLoading) {
     return (
       <ThemedView style={styles.stateScreen}>
         <View style={[styles.stateCard, { backgroundColor: surface, borderColor: border }]}>
@@ -200,8 +347,138 @@ export default function FullMovieReviewsScreen(): ReactElement {
 
   const reviewCountLabel = `${movie.reviewCount.toLocaleString()} reviews`;
   const runtimeLabel = formatRuntime(movie.runtimeMinutes);
-  const visibleCountLabel = `${visibleReviews.length} visible`;
+  const visibleCountLabel = `${totalCount.toLocaleString()} visible`;
   const overlayTop = insets.top + 12;
+
+  const listHeader = (
+    <>
+      <View style={styles.spacer} />
+
+      <View style={styles.contentCard}>
+        <Animated.View entering={getEnterAnimation(80)} style={styles.controlSurfaceWrap}>
+          <View style={styles.controlSurface}>
+            <View style={styles.controlHead}>
+              <View style={styles.controlCopy}>
+                <ThemedText style={[styles.sectionLabel, { color: accent }]}>Browse reviews</ThemedText>
+                <ThemedText type="subtitle">All community takes</ThemedText>
+                <ThemedText style={[styles.controlBody, { color: textMuted }]}>
+                  One calmer control surface keeps the movie context visible without competing with
+                  the reading flow.
+                </ThemedText>
+              </View>
+              <View style={[styles.controlMetaPill, { borderColor: border }]}>
+                <ThemedText style={[styles.controlMetaText, { color: accent }]}>
+                  {reviewCountLabel}
+                </ThemedText>
+              </View>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <View style={[styles.summaryPill, { borderColor: border }]}>
+                <ThemedText style={styles.summaryValue}>{movie.averageRating.toFixed(1)}</ThemedText>
+                <ThemedText style={[styles.summaryLabel, { color: textMuted }]}>avg rating</ThemedText>
+              </View>
+              <View style={[styles.summaryPill, { borderColor: border }]}>
+                <ThemedText style={styles.summaryValue}>{modeLabel}</ThemedText>
+                <ThemedText style={[styles.summaryLabel, { color: textMuted }]}>view mode</ThemedText>
+              </View>
+              <View style={[styles.summaryPill, { borderColor: border }]}>
+                <ThemedText style={styles.summaryValue}>{spoilerLabel}</ThemedText>
+                <ThemedText style={[styles.summaryLabel, { color: textMuted }]}>spoilers</ThemedText>
+              </View>
+            </View>
+
+            <View style={styles.metaRow}>
+              {[movie.year.toString(), runtimeLabel, movie.genres[0] ?? 'Movie'].map((label) => (
+                <View key={label} style={[styles.metaChip, { borderColor: border }]}>
+                  <ThemedText style={[styles.metaChipText, { color: textMuted }]}>{label}</ThemedText>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.filterRow}>
+              {[
+                { key: 'all', label: 'All reviews' },
+                { key: 'top-rated', label: 'Top rated' },
+                { key: 'spoiler-free', label: 'Spoiler free' },
+              ].map((option) => {
+                const isActive = viewMode === option.key;
+
+                return (
+                  <MotionPressable
+                    key={option.key}
+                    accessibilityLabel={`Show ${option.label.toLowerCase()}`}
+                    accessibilityRole="button"
+                    haptic
+                    onPress={() => handleChangeViewMode(option.key as ViewMode)}
+                    pressScale={0.97}
+                    style={[
+                      styles.filterChip,
+                      isActive
+                        ? { borderColor: accent, backgroundColor: 'rgba(245,196,81,0.12)' }
+                        : { borderColor: border, backgroundColor: 'rgba(255,255,255,0.03)' },
+                    ]}>
+                    <ThemedText
+                      style={[styles.filterChipText, { color: isActive ? accent : textMuted }]}>
+                      {option.label}
+                    </ThemedText>
+                  </MotionPressable>
+                );
+              })}
+            </View>
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={getEnterAnimation(140)} style={styles.sectionHeader}>
+          <View>
+            <ThemedText style={styles.sectionLabel}>Community</ThemedText>
+            <ThemedText type="subtitle">Full review stream</ThemedText>
+          </View>
+          <ThemedText style={[styles.sectionMeta, { color: textMuted }]}>{visibleCountLabel}</ThemedText>
+        </Animated.View>
+
+        <View style={styles.reviewListLead} />
+      </View>
+    </>
+  );
+
+  const listEmptyComponent = isInitialReviewsLoading ? (
+    <View style={[styles.inlineNotice, styles.edgeInset, { backgroundColor: surface, borderColor: border }]}>
+      <ActivityIndicator color={accent} />
+      <ThemedText type="defaultSemiBold">Loading reviews for this view</ThemedText>
+      <ThemedText style={[styles.inlineNoticeCopy, { color: textMuted }]}>
+        Pulling the first page from Supabase.
+      </ThemedText>
+    </View>
+  ) : reviewsError ? (
+    <View style={[styles.inlineNotice, styles.edgeInset, { backgroundColor: surface, borderColor: border }]}>
+      <ThemedText type="defaultSemiBold">Couldn&apos;t load reviews</ThemedText>
+      <ThemedText style={[styles.inlineNoticeCopy, { color: textMuted }]}>{reviewsError}</ThemedText>
+      <PrimaryButton label="Retry" onPress={handleRetry} />
+    </View>
+  ) : (
+    <View style={[styles.inlineNotice, styles.edgeInset, { backgroundColor: surface, borderColor: border }]}>
+      <ThemedText type="defaultSemiBold">No reviews in this view</ThemedText>
+      <ThemedText style={[styles.inlineNoticeCopy, { color: textMuted }]}>
+        Try a different filter or come back after more community reviews land in Supabase.
+      </ThemedText>
+    </View>
+  );
+
+  const listFooterComponent = isFetchingMore ? (
+    <View style={styles.listFooter}>
+      <ActivityIndicator color={accent} />
+      <ThemedText style={[styles.listFooterText, { color: textMuted }]}>Loading more reviews</ThemedText>
+    </View>
+  ) : reviewsError && reviews.length > 0 ? (
+    <View style={[styles.inlineNotice, styles.edgeInset, styles.listFooterNotice, { backgroundColor: surface, borderColor: border }]}>
+      <ThemedText type="defaultSemiBold">Couldn&apos;t load more reviews</ThemedText>
+      <ThemedText style={[styles.inlineNoticeCopy, { color: textMuted }]}>{reviewsError}</ThemedText>
+      <PrimaryButton label="Retry" onPress={handleRetry} />
+    </View>
+  ) : (
+    <View style={styles.listFooterSpacer} />
+  );
 
   return (
     <ThemedView style={styles.screen}>
@@ -230,119 +507,23 @@ export default function FullMovieReviewsScreen(): ReactElement {
         </View>
       </Animated.View>
 
-      <ScrollView
+      <FlatList
+        ref={listRef}
+        data={reviews}
+        keyExtractor={(item) => item.id}
+        renderItem={renderReviewItem}
+        ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmptyComponent}
+        ListFooterComponent={listFooterComponent}
+        onEndReached={() => {
+          void loadMoreReviews();
+        }}
+        onEndReachedThreshold={0.35}
         showsVerticalScrollIndicator={false}
         style={styles.scroll}
-        contentContainerStyle={styles.content}>
-        <View style={styles.spacer} />
-
-        <View style={styles.contentCard}>
-          <Animated.View entering={getEnterAnimation(80)} style={styles.controlSurfaceWrap}>
-            <BlurView intensity={20} tint="dark" style={styles.controlSurface}>
-              <View style={styles.controlHead}>
-                <View style={styles.controlCopy}>
-                  <ThemedText style={[styles.sectionLabel, { color: accent }]}>Browse reviews</ThemedText>
-                  <ThemedText type="subtitle">All community takes</ThemedText>
-                  <ThemedText style={[styles.controlBody, { color: textMuted }]}>
-                    One calmer control surface keeps the movie context visible without competing with the reading flow.
-                  </ThemedText>
-                </View>
-                <View style={[styles.controlMetaPill, { borderColor: border }]}>
-                  <ThemedText style={[styles.controlMetaText, { color: accent }]}>{reviewCountLabel}</ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.summaryRow}>
-                <View style={[styles.summaryPill, { borderColor: border }]}>
-                  <ThemedText style={styles.summaryValue}>{movie.averageRating.toFixed(1)}</ThemedText>
-                  <ThemedText style={[styles.summaryLabel, { color: textMuted }]}>avg rating</ThemedText>
-                </View>
-                <View style={[styles.summaryPill, { borderColor: border }]}>
-                  <ThemedText style={styles.summaryValue}>{modeLabel}</ThemedText>
-                  <ThemedText style={[styles.summaryLabel, { color: textMuted }]}>view mode</ThemedText>
-                </View>
-                <View style={[styles.summaryPill, { borderColor: border }]}>
-                  <ThemedText style={styles.summaryValue}>{spoilerLabel}</ThemedText>
-                  <ThemedText style={[styles.summaryLabel, { color: textMuted }]}>spoilers</ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.metaRow}>
-                {[movie.year.toString(), runtimeLabel, movie.genres[0] ?? 'Movie'].map((label) => (
-                  <View key={label} style={[styles.metaChip, { borderColor: border }]}>
-                    <ThemedText style={[styles.metaChipText, { color: textMuted }]}>{label}</ThemedText>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.filterRow}>
-                {[
-                  { key: 'all', label: 'All reviews' },
-                  { key: 'top-rated', label: 'Top rated' },
-                  { key: 'spoiler-free', label: 'Spoiler free' },
-                ].map((option) => {
-                  const isActive = viewMode === option.key;
-
-                  return (
-                    <MotionPressable
-                      key={option.key}
-                      accessibilityLabel={`Show ${option.label.toLowerCase()}`}
-                      accessibilityRole="button"
-                      haptic
-                      onPress={() => setViewMode(option.key as ViewMode)}
-                      pressScale={0.97}
-                      style={[
-                        styles.filterChip,
-                        isActive
-                          ? { borderColor: accent, backgroundColor: 'rgba(245,196,81,0.12)' }
-                          : { borderColor: border, backgroundColor: 'rgba(255,255,255,0.03)' },
-                      ]}>
-                      <ThemedText style={[styles.filterChipText, { color: isActive ? accent : textMuted }]}>
-                        {option.label}
-                      </ThemedText>
-                    </MotionPressable>
-                  );
-                })}
-              </View>
-            </BlurView>
-          </Animated.View>
-
-          <Animated.View entering={getEnterAnimation(140)} style={styles.sectionHeader}>
-            <View>
-              <ThemedText style={styles.sectionLabel}>Community</ThemedText>
-              <ThemedText type="subtitle">Full review stream</ThemedText>
-            </View>
-            <ThemedText style={[styles.sectionMeta, { color: textMuted }]}>{visibleCountLabel}</ThemedText>
-          </Animated.View>
-
-          <View style={styles.reviewList}>
-            {reviewsError ? (
-              <View style={[styles.inlineNotice, { backgroundColor: surface, borderColor: border }]}>
-                <ThemedText type="defaultSemiBold">Couldn&apos;t load reviews</ThemedText>
-                <ThemedText style={[styles.inlineNoticeCopy, { color: textMuted }]}>
-                  {reviewsError}
-                </ThemedText>
-                <PrimaryButton label="Retry" onPress={handleRetry} />
-              </View>
-            ) : visibleReviews.length > 0 ? (
-              visibleReviews.map((review, index) => (
-                <Animated.View
-                  key={review.id}
-                  entering={getEnterAnimation(200 + index * ITEM_STAGGER)}>
-                  <ReviewCard review={review} />
-                </Animated.View>
-              ))
-            ) : (
-              <View style={[styles.inlineNotice, { backgroundColor: surface, borderColor: border }]}>
-                <ThemedText type="defaultSemiBold">No reviews in this view</ThemedText>
-                <ThemedText style={[styles.inlineNoticeCopy, { color: textMuted }]}>
-                  Try a different filter or come back after more community reviews land in Supabase.
-                </ThemedText>
-              </View>
-            )}
-          </View>
-        </View>
-      </ScrollView>
+        contentContainerStyle={styles.content}
+      />
 
       <TouchableOpacity
         accessibilityLabel="Go back"
@@ -448,7 +629,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingTop: 18,
-    paddingBottom: 32,
     gap: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -8 },
@@ -466,7 +646,7 @@ const styles = StyleSheet.create({
   controlSurface: {
     gap: 14,
     padding: 16,
-    backgroundColor: GLASS_BG,
+    backgroundColor: 'rgba(22,25,35,0.96)',
   },
   controlHead: {
     gap: 12,
@@ -564,9 +744,17 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '600',
   },
-  reviewList: {
-    gap: 12,
+  reviewListLead: {
+    height: 12,
+  },
+  reviewItem: {
     paddingHorizontal: 16,
+  },
+  listSeparator: {
+    height: 12,
+  },
+  edgeInset: {
+    marginHorizontal: 16,
   },
   inlineNotice: {
     gap: 10,
@@ -577,5 +765,24 @@ const styles = StyleSheet.create({
   inlineNoticeCopy: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  listFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingTop: 14,
+    paddingBottom: 8,
+  },
+  listFooterText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  listFooterNotice: {
+    marginTop: 14,
+  },
+  listFooterSpacer: {
+    height: 8,
   },
 });

@@ -20,7 +20,7 @@ import { getReviewsForMovie } from '@/services/reviews';
 const SECTION_ENTER_DURATION = 300;
 const ITEM_STAGGER = 40;
 const BACKDROP_HEIGHT = 460;  // taller backdrop for full immersion
-const CARD_START = 420;        // card starts in gradient fade zone, below poster+title
+const CARD_START = 440;        // card starts clearly below poster+title zone
 
 function getEnterAnimation(delay = 0) {
   return FadeInDown.duration(SECTION_ENTER_DURATION)
@@ -85,12 +85,16 @@ export default function MovieDetailScreen(): ReactElement {
         }
 
         try {
-          const reviewResults = await getReviewsForMovie(movieId);
+          const reviewResults = await getReviewsForMovie(movieId, {
+            page: 1,
+            pageSize: 2,
+            sortBy: 'newest',
+          });
 
           if (!isActive) return;
 
           startTransition(() => {
-            setReviews(reviewResults);
+            setReviews(reviewResults.reviews);
           });
         } catch (error) {
           if (!isActive) return;
@@ -288,12 +292,12 @@ export default function MovieDetailScreen(): ReactElement {
 
           {/* ── REVIEWS ──────────────────────────────────────────── */}
           <Animated.View entering={getEnterAnimation(260)} style={styles.sectionHeader}>
-            <View>
+            <View style={styles.sectionHeaderLeft}>
               <ThemedText style={styles.sectionLabel}>Community</ThemedText>
               <ThemedText type="subtitle">Recent reviews preview</ThemedText>
             </View>
             <View style={styles.sectionHeaderActions}>
-              <ThemedText style={[styles.reviewMeta, { color: textMuted }]}>{reviewCountLabel}</ThemedText>
+              <ThemedText style={[styles.reviewMeta, { color: textMuted }]} numberOfLines={1}>{reviewCountLabel}</ThemedText>
               <MotionPressable
                 accessibilityLabel="Open all reviews"
                 accessibilityRole="button"
@@ -602,6 +606,10 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 16,
   },
+  sectionHeaderLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
   reviewMeta: {
     fontSize: 13,
     lineHeight: 18,
@@ -610,7 +618,8 @@ const styles = StyleSheet.create({
   sectionHeaderActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    flexShrink: 0,
   },
   inlineAction: {
     borderRadius: 999,

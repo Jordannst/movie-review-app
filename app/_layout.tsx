@@ -18,6 +18,7 @@ export default function RootLayout(): ReactElement {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="movies/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="movies/[id]/reviews" options={{ headerShown: false }} />
         <Stack.Screen name="reviews/new" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />

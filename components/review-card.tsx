@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import { type ReactElement, useEffect, useState } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -11,6 +10,8 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 type ReviewCardProps = {
   review: Review;
   style?: StyleProp<ViewStyle>;
+  isSpoilerRevealed?: boolean;
+  onRevealSpoiler?: (reviewId: Review['id']) => void;
 };
 
 function formatReviewDate(createdAt: string): string {
@@ -24,19 +25,39 @@ function formatReviewDate(createdAt: string): string {
   });
 }
 
-export function ReviewCard({ review, style }: ReviewCardProps): ReactElement {
+export function ReviewCard({
+  review,
+  style,
+  isSpoilerRevealed: controlledIsSpoilerRevealed,
+  onRevealSpoiler,
+}: ReviewCardProps): ReactElement {
   const surface = useThemeColor({}, 'surface');
   const surfaceMuted = useThemeColor({}, 'surfaceMuted');
   const border = useThemeColor({}, 'border');
   const textMuted = useThemeColor({}, 'textMuted');
   const accent = useThemeColor({}, 'accent');
-  const [isSpoilerRevealed, setIsSpoilerRevealed] = useState(() => !review.containsSpoilers);
+  const [localIsSpoilerRevealed, setLocalIsSpoilerRevealed] = useState(
+    () => !review.containsSpoilers
+  );
+  const isSpoilerRevealed = controlledIsSpoilerRevealed ?? localIsSpoilerRevealed;
+  const usesControlledSpoilerState = controlledIsSpoilerRevealed !== undefined;
 
   useEffect(() => {
-    setIsSpoilerRevealed(!review.containsSpoilers);
-  }, [review.containsSpoilers, review.id]);
+    if (!usesControlledSpoilerState) {
+      setLocalIsSpoilerRevealed(!review.containsSpoilers);
+    }
+  }, [review.containsSpoilers, review.id, usesControlledSpoilerState]);
 
   const isSpoilerHidden = Boolean(review.containsSpoilers && !isSpoilerRevealed);
+
+  function handleRevealSpoiler(): void {
+    if (onRevealSpoiler) {
+      onRevealSpoiler(review.id);
+      return;
+    }
+
+    setLocalIsSpoilerRevealed(true);
+  }
 
   return (
     <View style={[styles.card, { backgroundColor: surface, borderColor: border }, style]}>
@@ -64,27 +85,25 @@ export function ReviewCard({ review, style }: ReviewCardProps): ReactElement {
                 { backgroundColor: surfaceMuted, borderColor: border },
               ]}>
               <View style={styles.spoilerToolbarCopy}>
-                <ThemedText style={styles.spoilerToolbarTitle}>Blurred spoiler review</ThemedText>
+                <ThemedText style={styles.spoilerToolbarTitle}>Spoiler review hidden</ThemedText>
                 <ThemedText style={[styles.spoilerToolbarText, { color: textMuted }]}>
-                  Tap reveal only if you want the full title and review text.
+                  Tap reveal to read the full title and review text.
                 </ThemedText>
               </View>
             </View>
 
-            <View style={[styles.spoilerPreview, { borderColor: border }]}>
-              <View pointerEvents="none" style={styles.spoilerPreviewContent}>
-                <ThemedText type="defaultSemiBold">{review.title}</ThemedText>
-                <ThemedText style={[styles.copy, { color: textMuted }]}>{review.body}</ThemedText>
-              </View>
-              <BlurView intensity={55} tint="dark" style={styles.spoilerBlur} />
-              <View style={styles.spoilerScrim} pointerEvents="none" />
+            {/* Placeholder bars — actual text is NOT rendered */}
+            <View style={[styles.spoilerPlaceholder, { borderColor: border, backgroundColor: surfaceMuted }]}>
+              <View style={[styles.placeholderBar, styles.placeholderBarTitle, { backgroundColor: border }]} />
+              <View style={[styles.placeholderBar, { backgroundColor: border }]} />
+              <View style={[styles.placeholderBar, styles.placeholderBarShort, { backgroundColor: border }]} />
             </View>
 
             <MotionPressable
               accessibilityLabel="Reveal spoiler review"
               accessibilityRole="button"
               haptic
-              onPress={() => setIsSpoilerRevealed(true)}
+              onPress={handleRevealSpoiler}
               style={[
                 styles.revealButton,
                 { backgroundColor: surfaceMuted, borderColor: border },
@@ -159,24 +178,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
   },
-  spoilerPreview: {
-    position: 'relative',
-    overflow: 'hidden',
-    borderRadius: 18,
+  spoilerPlaceholder: {
+    borderRadius: 14,
     borderWidth: 1,
-    minHeight: 116,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
-  spoilerPreviewContent: {
-    gap: 8,
     padding: 14,
+    gap: 10,
+    minHeight: 96,
+    justifyContent: 'center',
   },
-  spoilerBlur: {
-    ...StyleSheet.absoluteFillObject,
+  placeholderBar: {
+    height: 10,
+    borderRadius: 6,
+    opacity: 0.5,
   },
-  spoilerScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(11,13,18,0.22)',
+  placeholderBarTitle: {
+    height: 13,
+    width: '55%',
+    marginBottom: 2,
+  },
+  placeholderBarShort: {
+    width: '40%',
   },
   revealButton: {
     alignSelf: 'flex-start',
