@@ -241,6 +241,18 @@ export default function FullMovieReviewsScreen(): ReactElement {
     });
   }, []);
 
+  const handleHideSpoiler = useCallback((reviewId: Review['id']): void => {
+    setRevealedSpoilerReviewIds((current) => {
+      if (!current[reviewId]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[reviewId];
+      return next;
+    });
+  }, []);
+
   const loadMoreReviews = useCallback(async (): Promise<void> => {
     if (
       !movieId ||
@@ -297,10 +309,11 @@ export default function FullMovieReviewsScreen(): ReactElement {
           review={item}
           isSpoilerRevealed={Boolean(revealedSpoilerReviewIds[item.id]) || !item.containsSpoilers}
           onRevealSpoiler={handleRevealSpoiler}
+          onHideSpoiler={handleHideSpoiler}
         />
       </View>
     ),
-    [handleRevealSpoiler, revealedSpoilerReviewIds]
+    [handleHideSpoiler, handleRevealSpoiler, revealedSpoilerReviewIds]
   );
 
   const modeLabel = getModeLabel(viewMode);

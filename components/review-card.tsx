@@ -12,6 +12,7 @@ type ReviewCardProps = {
   style?: StyleProp<ViewStyle>;
   isSpoilerRevealed?: boolean;
   onRevealSpoiler?: (reviewId: Review['id']) => void;
+  onHideSpoiler?: (reviewId: Review['id']) => void;
 };
 
 function formatReviewDate(createdAt: string): string {
@@ -30,6 +31,7 @@ export function ReviewCard({
   style,
   isSpoilerRevealed: controlledIsSpoilerRevealed,
   onRevealSpoiler,
+  onHideSpoiler,
 }: ReviewCardProps): ReactElement {
   const surface = useThemeColor({}, 'surface');
   const surfaceMuted = useThemeColor({}, 'surfaceMuted');
@@ -55,8 +57,15 @@ export function ReviewCard({
       onRevealSpoiler(review.id);
       return;
     }
-
     setLocalIsSpoilerRevealed(true);
+  }
+
+  function handleHideSpoiler(): void {
+    if (onHideSpoiler) {
+      onHideSpoiler(review.id);
+      return;
+    }
+    setLocalIsSpoilerRevealed(false);
   }
 
   return (
@@ -117,6 +126,21 @@ export function ReviewCard({
           <>
             <ThemedText type="defaultSemiBold">{review.title}</ThemedText>
             <ThemedText style={[styles.copy, { color: textMuted }]}>{review.body}</ThemedText>
+            {review.containsSpoilers ? (
+              <MotionPressable
+                accessibilityLabel="Hide spoiler review"
+                accessibilityRole="button"
+                haptic
+                onPress={handleHideSpoiler}
+                style={[
+                  styles.revealButton,
+                  { backgroundColor: surfaceMuted, borderColor: border },
+                ]}>
+                <ThemedText style={[styles.revealButtonText, { color: textMuted }]}>
+                  Hide spoiler
+                </ThemedText>
+              </MotionPressable>
+            ) : null}
           </>
         )}
       </View>
