@@ -69,3 +69,58 @@ export async function getFeaturedMovie(): Promise<Movie | null> {
   if (err2) throw new Error(`getFeaturedMovie fallback: ${err2.message}`);
   return first ? toMovie(first) : null;
 }
+
+export type MovieSortKey = 'rating' | 'year' | 'title';
+
+export type MoviesFilterParams = {
+  genre?: string;       // undefined or 'All' = no filter
+  sort?: MovieSortKey;  // default: 'rating'
+  page?: number;        // 0-indexed
+  pageSize?: number;    // default 12
+};
+
+export type MoviesPage = {
+  movies: Movie[];
+  totalCount: number;
+  hasMore: boolean;
+};
+
+/** Ambil film dengan filter genre, sorting, dan pagination */
+export async function getMoviesFiltered(
+  params: MoviesFilterParams = {}
+): Promise<MoviesPage> {
+  const { genre, sort = 'rating', page = 0, pageSize = 12 } = params;
+
+  let query = supabase.from('movies').select('*', { count: 'exact' });
+
+  // Genre filter — Supabase array contains operator
+  if (genre && genre !== 'All') {
+    query = query.contains('genres', [genre]);
+  }
+
+  // Sort
+  if (sort === 'rating') {
+    query = query.order('average_rating', { ascending: false });
+  } else if (sort === 'year') {
+    query = query.order('year', { ascending: false });
+  } else {
+    query = query.order('title', { ascending: true });
+  }
+
+  // Pagination
+  const from = page * pageSize;
+  query = query.range(from, from + pageSize - 1);
+
+  const { data, error, count } = await query;
+
+  if (error) throw new Error(`getMoviesFiltered: ${error.message}`);
+
+  const movies = (data ?? []).map(toMovie);
+  const totalCount = count ?? 0;
+
+  return {
+    movies,
+    totalCount,
+    hasMore: from + movies.length < totalCount,
+  };
+}

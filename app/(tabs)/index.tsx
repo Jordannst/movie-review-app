@@ -116,7 +116,13 @@ export default function HomeScreen(): ReactElement {
     router.push(`/movies/${movieId}`);
   }
 
-  function handleDiscoverPress(): void {}
+  function handleDiscoverPress(genre?: string): void {
+    if (genre) {
+      router.push({ pathname: '/movies' as never, params: { genre } });
+    } else {
+      router.push('/movies' as never);
+    }
+  }
 
   function handleRetry(): void {
     setReloadVersion((current) => current + 1);
@@ -212,7 +218,7 @@ export default function HomeScreen(): ReactElement {
                   accessibilityLabel={`Browse ${chip.toLowerCase()} movies`}
                   accessibilityRole="button"
                   haptic
-                  onPress={handleDiscoverPress}
+                  onPress={() => handleDiscoverPress(chip)}
                   style={[
                     styles.chip,
                     {
@@ -241,7 +247,14 @@ export default function HomeScreen(): ReactElement {
                 {normalizedQuery ? `Results for "${query.trim()}"` : 'Browse popular picks'}
               </ThemedText>
             </View>
-            <ThemedText style={[styles.sectionMeta, { color: textMuted }]}>{movieCountLabel}</ThemedText>
+            <MotionPressable
+              accessibilityLabel="See all movies"
+              accessibilityRole="button"
+              haptic
+              onPress={() => handleDiscoverPress()}
+              style={[styles.seeAllBtn, { borderColor: accent, backgroundColor: `${accent}15` }]}>
+              <ThemedText style={[styles.seeAllText, { color: accent }]}>See all →</ThemedText>
+            </MotionPressable>
           </Animated.View>
 
           {/* ── 6. MOVIE LIST ─────────────────────────────────── */}
@@ -435,6 +448,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '600',
+  },
+
+  seeAllBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  seeAllText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   // Movie list

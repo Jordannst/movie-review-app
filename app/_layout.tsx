@@ -45,6 +45,15 @@ export default function RootLayout(): ReactElement {
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
+          name="movies/index"
+          options={{
+            headerShown: false,
+            presentation: 'transparentModal',
+            animation: 'none',
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
+        <Stack.Screen
           name="movies/[id]"
           options={{
             headerShown: false,
