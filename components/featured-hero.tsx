@@ -15,6 +15,7 @@ type FeaturedHeroProps = {
   actionLabel?: string;
   onActionPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  topInset?: number;
 };
 
 export function FeaturedHero({
@@ -23,6 +24,7 @@ export function FeaturedHero({
   actionLabel,
   onActionPress,
   style,
+  topInset = 0,
 }: FeaturedHeroProps): ReactElement {
   const border = useThemeColor({}, 'border');
   const accent = useThemeColor({}, 'accent');
@@ -38,7 +40,7 @@ export function FeaturedHero({
         style={styles.overlay}
       />
 
-      <View style={styles.content}>
+      <View style={[styles.content, topInset > 0 && { paddingTop: topInset + 12 }]}>
         <View style={styles.textBlock}>
           <ThemedText style={[styles.eyebrow, { color: accent }]}>{eyebrow}</ThemedText>
           <ThemedText type="title" numberOfLines={2} style={styles.title} lightColor="#F5F7FA" darkColor="#F5F7FA">
@@ -82,7 +84,7 @@ export function FeaturedHero({
 
 const styles = StyleSheet.create({
   container: {
-    minHeight: 420,
+    minHeight: 560,
     overflow: 'hidden',
     justifyContent: 'flex-end',
   },

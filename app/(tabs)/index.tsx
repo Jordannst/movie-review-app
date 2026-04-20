@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { startTransition, type ReactElement, useEffect, useMemo, useState } from 'react';
 import { Dimensions, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FeaturedHero } from '@/components/featured-hero';
 import { MotionPressable } from '@/components/motion-pressable';
@@ -111,6 +111,7 @@ export default function HomeScreen(): ReactElement {
   const movieCountLabel = `${filteredMovies.length} movie${filteredMovies.length === 1 ? '' : 's'}`;
 
   const greeting = useMemo(() => getGreeting(), []);
+  const insets = useSafeAreaInsets();
 
   function handleOpenMovie(movieId: string): void {
     router.push(`/movies/${movieId}`);
@@ -150,9 +151,12 @@ export default function HomeScreen(): ReactElement {
         />
       </View>
 
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <SafeAreaView edges={['bottom']} style={styles.safeArea}>
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: normalizedQuery ? insets.top : 0 },
+          ]}
           showsVerticalScrollIndicator={false}
           style={styles.scroll}>
 
@@ -163,6 +167,7 @@ export default function HomeScreen(): ReactElement {
                 movie={featuredMovie}
                 actionLabel="View Details"
                 onActionPress={() => handleOpenMovie(featuredMovie.id)}
+                topInset={insets.top}
               />
             </Animated.View>
           ) : null}
