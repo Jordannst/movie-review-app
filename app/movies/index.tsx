@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -344,30 +345,31 @@ export default function BrowseMoviesScreen(): ReactElement {
       </View>
 
       {/* ── Genre Chips ──────────────────────────────────────────────────── */}
-      <Animated.ScrollView
-        entering={FadeIn.duration(300).delay(80)}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.genreRow}>
-        {ALL_GENRES.map((genre) => {
-          const active = selectedGenre === genre;
-          return (
-            <TouchableOpacity
-              key={genre}
-              accessibilityLabel={`Filter by ${genre}`}
-              onPress={() => setSelectedGenre(genre)}
-              style={[
-                styles.genreChip,
-                { borderColor: border, backgroundColor: surfaceMuted },
-                active && { borderColor: accent, backgroundColor: `${accent}18` },
-              ]}>
-              <ThemedText style={[styles.genreChipText, { color: textMuted }, active && { color: accent }]}>
-                {genre}
-              </ThemedText>
-            </TouchableOpacity>
-          );
-        })}
-      </Animated.ScrollView>
+      <Animated.View entering={FadeIn.duration(300).delay(80)}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.genreRow}>
+          {ALL_GENRES.map((genre) => {
+            const active = selectedGenre === genre;
+            return (
+              <TouchableOpacity
+                key={genre}
+                accessibilityLabel={`Filter by ${genre}`}
+                onPress={() => setSelectedGenre(genre)}
+                style={[
+                  styles.genreChip,
+                  { borderColor: border, backgroundColor: surfaceMuted },
+                  active && { borderColor: accent, backgroundColor: `${accent}18` },
+                ]}>
+                <ThemedText style={[styles.genreChipText, { color: textMuted }, active && { color: accent }]}>
+                  {genre}
+                </ThemedText>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </Animated.View>
 
       {/* ── Sort Pills + Count ────────────────────────────────────────────── */}
       <Animated.View entering={FadeIn.duration(300).delay(120)} style={styles.sortRow}>
