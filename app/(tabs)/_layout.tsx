@@ -8,6 +8,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout(): ReactElement {
   const colorScheme = useColorScheme();
+  const isDark = colorScheme !== 'light';
+  const bgColor = isDark ? Colors.dark.background : Colors.light.background;
 
   return (
     <Tabs
@@ -15,6 +17,7 @@ export default function TabLayout(): ReactElement {
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'dark'].accent,
         headerShown: false,
+        sceneStyle: { backgroundColor: bgColor },
       }}>
       <Tabs.Screen
         name="index"

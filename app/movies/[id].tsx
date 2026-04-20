@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { startTransition, type ReactElement, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeInDown, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MotionPressable } from '@/components/motion-pressable';
@@ -186,7 +186,10 @@ export default function MovieDetailScreen(): ReactElement {
   }
 
   return (
-    <ThemedView style={styles.screen}>
+    <Animated.View
+      style={styles.screen}
+      entering={SlideInDown.duration(380).easing(Easing.out(Easing.cubic))}
+      exiting={SlideOutDown.duration(320).easing(Easing.in(Easing.cubic))}>
 
       {/* ── BACKDROP — absolute, always visible behind scroll ───── */}
       <Animated.View entering={FadeIn.duration(500)} style={styles.backdropWrap}>
@@ -363,7 +366,7 @@ export default function MovieDetailScreen(): ReactElement {
         </BlurView>
       </Animated.View>
 
-    </ThemedView>
+    </Animated.View>
   );
 }
 
