@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MotionPressable } from '@/components/motion-pressable';
 import { PrimaryButton } from '@/components/primary-button';
 import { ReviewCard } from '@/components/review-card';
+import { ShimmerView } from '@/components/shimmer-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Movie, Review } from '@/data/types';
@@ -21,6 +22,122 @@ const SECTION_ENTER_DURATION = 300;
 const ITEM_STAGGER = 40;
 const BACKDROP_HEIGHT = 460;  // taller backdrop for full immersion
 const CARD_START = 440;        // card starts clearly below poster+title zone
+const DETAIL_SHIMMER = '#1A1C24';
+
+function MovieDetailLoadingSkeleton({ overlayTop }: { overlayTop: number }) {
+  return (
+    <View style={styles.screen}>
+      <View style={styles.backdropWrap}>
+        <ShimmerView color={DETAIL_SHIMMER} style={StyleSheet.absoluteFillObject} duration={1100} />
+        <LinearGradient
+          colors={['rgba(11,13,18,0.10)', 'rgba(11,13,18,0.55)', '#0B0D12']}
+          locations={[0.2, 0.7, 1]}
+          style={StyleSheet.absoluteFillObject}
+        />
+
+        <View style={styles.backdropContent}>
+          <ShimmerView color={DETAIL_SHIMMER} style={styles.poster} duration={950} />
+          <View style={styles.titleBlock}>
+            <ShimmerView color={DETAIL_SHIMMER} style={{ height: 28, width: '82%', borderRadius: 8 }} duration={900} />
+            <ShimmerView color={DETAIL_SHIMMER} style={{ height: 14, width: '68%', borderRadius: 6 }} duration={980} />
+            <ShimmerView color={DETAIL_SHIMMER} style={{ height: 14, width: '52%', borderRadius: 6 }} duration={1040} />
+          </View>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.scroll}>
+        <View style={styles.spacer} />
+
+        <View style={styles.contentCard}>
+          <Animated.View entering={FadeInDown.duration(220).delay(90).easing(Easing.out(Easing.cubic))} style={styles.metaStripWrap}>
+            <BlurView intensity={20} tint="dark" style={styles.metaStrip}>
+              {Array.from({ length: 3 }).map((_, index, arr) => (
+                <View key={index} style={[styles.metaItem, index < arr.length - 1 && styles.metaItemBorder]}>
+                  <ShimmerView color={DETAIL_SHIMMER} style={{ height: 9, width: 34, borderRadius: 4 }} duration={900 + index * 70} />
+                  <ShimmerView color={DETAIL_SHIMMER} style={{ height: 13, width: 58, borderRadius: 5 }} duration={960 + index * 70} />
+                </View>
+              ))}
+            </BlurView>
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.duration(220).delay(130).easing(Easing.out(Easing.cubic))} style={styles.genreRow}>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <BlurView key={index} intensity={18} tint="light" style={styles.genreChip}>
+                <ShimmerView color={DETAIL_SHIMMER} style={{ height: 12, width: 52 + index * 8, borderRadius: 999 }} duration={920 + index * 60} />
+              </BlurView>
+            ))}
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.duration(220).delay(170).easing(Easing.out(Easing.cubic))} style={styles.section}>
+            <ShimmerView color={DETAIL_SHIMMER} style={{ height: 10, width: 70, borderRadius: 5 }} duration={920} />
+            <ShimmerView color={DETAIL_SHIMMER} style={{ height: 14, width: '100%', borderRadius: 6 }} duration={980} />
+            <ShimmerView color={DETAIL_SHIMMER} style={{ height: 14, width: '96%', borderRadius: 6 }} duration={1040} />
+            <ShimmerView color={DETAIL_SHIMMER} style={{ height: 14, width: '88%', borderRadius: 6 }} duration={1100} />
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.duration(220).delay(210).easing(Easing.out(Easing.cubic))} style={styles.ctaWrap}>
+            <LinearGradient
+              colors={['rgba(124,58,237,0.18)', 'rgba(59,130,246,0.10)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.ctaGradient}>
+              <BlurView intensity={22} tint="dark" style={styles.ctaCard}>
+                <View style={styles.ctaTextBlock}>
+                  <ShimmerView color={DETAIL_SHIMMER} style={{ height: 12, width: 96, borderRadius: 6 }} duration={900} />
+                  <ShimmerView color={DETAIL_SHIMMER} style={{ height: 13, width: '92%', borderRadius: 6 }} duration={980} />
+                  <ShimmerView color={DETAIL_SHIMMER} style={{ height: 13, width: '72%', borderRadius: 6 }} duration={1060} />
+                </View>
+                <ShimmerView color={DETAIL_SHIMMER} style={{ height: 46, width: '100%', borderRadius: 999 }} duration={960} />
+              </BlurView>
+            </LinearGradient>
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.duration(220).delay(250).easing(Easing.out(Easing.cubic))} style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderLeft}>
+              <ShimmerView color={DETAIL_SHIMMER} style={{ height: 10, width: 78, borderRadius: 5 }} duration={920} />
+              <ShimmerView color={DETAIL_SHIMMER} style={{ height: 18, width: 154, borderRadius: 7, marginTop: 8 }} duration={1000} />
+            </View>
+            <ShimmerView color={DETAIL_SHIMMER} style={{ height: 34, width: 86, borderRadius: 999 }} duration={980} />
+          </Animated.View>
+
+          <View style={styles.reviewList}>
+            {Array.from({ length: 2 }).map((_, index) => (
+              <Animated.View
+                key={index}
+                entering={FadeInDown.duration(220).delay(300 + index * ITEM_STAGGER).easing(Easing.out(Easing.cubic))}
+                style={styles.reviewSkeletonCard}>
+                <View style={styles.reviewSkeletonHeader}>
+                  <ShimmerView color={DETAIL_SHIMMER} style={{ width: 36, height: 36, borderRadius: 18 }} duration={900 + index * 70} />
+                  <View style={{ flex: 1, gap: 7 }}>
+                    <ShimmerView color={DETAIL_SHIMMER} style={{ height: 12, width: '36%', borderRadius: 5 }} duration={960 + index * 70} />
+                    <ShimmerView color={DETAIL_SHIMMER} style={{ height: 10, width: '24%', borderRadius: 5 }} duration={1020 + index * 70} />
+                  </View>
+                </View>
+                <View style={{ gap: 8 }}>
+                  <ShimmerView color={DETAIL_SHIMMER} style={{ height: 12, width: '100%', borderRadius: 6 }} duration={980 + index * 70} />
+                  <ShimmerView color={DETAIL_SHIMMER} style={{ height: 12, width: '94%', borderRadius: 6 }} duration={1040 + index * 70} />
+                  <ShimmerView color={DETAIL_SHIMMER} style={{ height: 12, width: '76%', borderRadius: 6 }} duration={1100 + index * 70} />
+                </View>
+              </Animated.View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+
+      <View style={[styles.backBtn, { top: overlayTop }]}>
+        <BlurView intensity={30} tint="dark" style={styles.backBtnInner}>
+          <ShimmerView color={DETAIL_SHIMMER} style={{ height: 12, width: 68, borderRadius: 6 }} duration={900} />
+        </BlurView>
+      </View>
+
+      <View style={[styles.ratingPillWrap, { top: overlayTop }]}>
+        <BlurView intensity={30} tint="dark" style={styles.ratingPill}>
+          <ShimmerView color={DETAIL_SHIMMER} style={{ width: 54, height: 12, borderRadius: 6 }} duration={960} />
+        </BlurView>
+      </View>
+    </View>
+  );
+}
 
 function getEnterAnimation(delay = 0) {
   return FadeInDown.duration(SECTION_ENTER_DURATION)
@@ -129,16 +246,7 @@ export default function MovieDetailScreen(): ReactElement {
   }
 
   if (isMovieLoading) {
-    return (
-      <ThemedView style={styles.missingScreen}>
-        <View style={[styles.missingCard, { backgroundColor: surface, borderColor: border }]}>
-          <ThemedText type="title">Loading movie</ThemedText>
-          <ThemedText style={[styles.missingCopy, { color: textMuted }]}>
-            Pulling movie details and reviews from Supabase.
-          </ThemedText>
-        </View>
-      </ThemedView>
-    );
+    return <MovieDetailLoadingSkeleton overlayTop={overlayTop} />;
   }
 
   if (movieError) {
@@ -638,6 +746,19 @@ const styles = StyleSheet.create({
   reviewList: {
     gap: 12,
     paddingHorizontal: 16,
+  },
+  reviewSkeletonCard: {
+    gap: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    backgroundColor: GLASS_BG,
+    padding: 16,
+  },
+  reviewSkeletonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   inlineNotice: {
     gap: 10,

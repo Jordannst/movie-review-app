@@ -23,6 +23,7 @@ import Animated, {
 
 import { MotionPressable } from '@/components/motion-pressable';
 import { PrimaryButton } from '@/components/primary-button';
+import { ShimmerView } from '@/components/shimmer-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Movie } from '@/data/types';
@@ -35,6 +36,7 @@ const MAX_CHARS = 500;
 const RATING_OPTIONS = Array.from({ length: MAX_RATING }, (_, i) => i + 1);
 const GLASS_BG = 'rgba(255,255,255,0.05)';
 const GLASS_BORDER = 'rgba(255,255,255,0.10)';
+const REVIEW_SHIMMER = '#1A1C24';
 
 const RATING_LABELS: Record<number, string> = {
   1: 'Meh',
@@ -156,6 +158,121 @@ function BannerHeader({ accent, movieTitle, movieYear, onBack }: BannerHeaderPro
   );
 }
 
+function ReviewFormLoadingSkeleton(): ReactElement {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <ThemedView style={styles.screen}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        style={styles.scroll}
+        contentContainerStyle={styles.content}>
+        <View style={styles.topBanner}>
+          <LinearGradient
+            colors={['rgba(45,10,90,0.80)', 'rgba(18,26,61,0.85)', 'rgba(4,29,31,0.80)']}
+            start={{ x: 0.2, y: 0 }}
+            end={{ x: 0.8, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <LinearGradient
+            colors={['transparent', '#0B0D12']}
+            locations={[0.55, 1]}
+            style={styles.bannerFade}
+          />
+
+          <View style={[styles.bannerInner, { paddingTop: insets.top + 10 }]}>
+            <View style={styles.backBtn}>
+              <BlurView intensity={28} tint="dark" style={styles.backBtnInner}>
+                <ShimmerView color={REVIEW_SHIMMER} style={{ height: 12, width: 64, borderRadius: 6 }} duration={900} />
+              </BlurView>
+            </View>
+
+            <View style={styles.bannerSpacer} />
+
+            <View style={styles.bannerContent}>
+              <BlurView intensity={22} tint="dark" style={styles.movieContextPill}>
+                <ShimmerView color={REVIEW_SHIMMER} style={{ height: 11, width: 116, borderRadius: 999 }} duration={960} />
+              </BlurView>
+              <ShimmerView color={REVIEW_SHIMMER} style={{ height: 30, width: '56%', borderRadius: 8 }} duration={1020} />
+            </View>
+          </View>
+        </View>
+
+        <Animated.View entering={FadeInDown.duration(220).delay(80).easing(Easing.out(Easing.cubic))} style={styles.section}>
+          <ShimmerView color={REVIEW_SHIMMER} style={{ height: 10, width: 62, borderRadius: 5 }} duration={900} />
+          <View style={styles.starsRow}>
+            {Array.from({ length: MAX_RATING }).map((_, index) => (
+              <View key={index} style={styles.starBtn}>
+                <ShimmerView color={REVIEW_SHIMMER} style={{ width: 24, height: 24, borderRadius: 12 }} duration={960 + index * 50} />
+              </View>
+            ))}
+          </View>
+          <View style={styles.ratingLabelRow}>
+            <ShimmerView color={REVIEW_SHIMMER} style={{ height: 16, width: 88, borderRadius: 6 }} duration={1020} />
+            <ShimmerView color={REVIEW_SHIMMER} style={{ height: 12, width: 46, borderRadius: 6 }} duration={1080} />
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.duration(220).delay(130).easing(Easing.out(Easing.cubic))} style={styles.section}>
+          <ShimmerView color={REVIEW_SHIMMER} style={{ height: 10, width: 132, borderRadius: 5 }} duration={920} />
+          <View style={styles.tagsWrap}>
+            {[70, 112, 120, 86, 96, 128].map((width, index) => (
+              <View key={index} style={styles.tag}>
+                <ShimmerView color={REVIEW_SHIMMER} style={{ height: 12, width, borderRadius: 999 }} duration={980 + index * 45} />
+              </View>
+            ))}
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.duration(220).delay(180).easing(Easing.out(Easing.cubic))} style={styles.section}>
+          <ShimmerView color={REVIEW_SHIMMER} style={{ height: 10, width: 118, borderRadius: 5 }} duration={940} />
+          <View style={styles.spoilerToggle}>
+            <View style={styles.spoilerToggleCopy}>
+              <ShimmerView color={REVIEW_SHIMMER} style={{ height: 14, width: '72%', borderRadius: 6 }} duration={1000} />
+              <ShimmerView color={REVIEW_SHIMMER} style={{ height: 12, width: '96%', borderRadius: 6 }} duration={1060} />
+              <ShimmerView color={REVIEW_SHIMMER} style={{ height: 12, width: '78%', borderRadius: 6 }} duration={1120} />
+            </View>
+            <View style={styles.spoilerTogglePill}>
+              <ShimmerView color={REVIEW_SHIMMER} style={{ height: 12, width: 42, borderRadius: 999 }} duration={1040} />
+            </View>
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.duration(220).delay(230).easing(Easing.out(Easing.cubic))} style={styles.section}>
+          <View style={styles.textareaHeader}>
+            <ShimmerView color={REVIEW_SHIMMER} style={{ height: 10, width: 86, borderRadius: 5 }} duration={960} />
+            <ShimmerView color={REVIEW_SHIMMER} style={{ height: 10, width: 54, borderRadius: 5 }} duration={1020} />
+          </View>
+          <View style={styles.textArea}>
+            <View style={{ gap: 10 }}>
+              <ShimmerView color={REVIEW_SHIMMER} style={{ height: 13, width: '92%', borderRadius: 6 }} duration={1080} />
+              <ShimmerView color={REVIEW_SHIMMER} style={{ height: 13, width: '100%', borderRadius: 6 }} duration={1140} />
+              <ShimmerView color={REVIEW_SHIMMER} style={{ height: 13, width: '88%', borderRadius: 6 }} duration={1200} />
+              <ShimmerView color={REVIEW_SHIMMER} style={{ height: 13, width: '74%', borderRadius: 6 }} duration={1260} />
+            </View>
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.duration(220).delay(280).easing(Easing.out(Easing.cubic))} style={styles.ctaWrap}>
+          <LinearGradient
+            colors={['rgba(124,58,237,0.18)', 'rgba(59,130,246,0.10)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.ctaGradient}>
+            <BlurView intensity={22} tint="dark" style={styles.ctaCard}>
+              <View style={{ gap: 9 }}>
+                <ShimmerView color={REVIEW_SHIMMER} style={{ height: 13, width: '100%', borderRadius: 6 }} duration={1000} />
+                <ShimmerView color={REVIEW_SHIMMER} style={{ height: 13, width: '84%', borderRadius: 6 }} duration={1060} />
+              </View>
+              <ShimmerView color={REVIEW_SHIMMER} style={{ height: 46, width: '100%', borderRadius: 999 }} duration={1120} />
+            </BlurView>
+          </LinearGradient>
+        </Animated.View>
+      </ScrollView>
+    </ThemedView>
+  );
+}
+
 // ── Main screen ────────────────────────────────────────────
 export default function ReviewFormScreen(): ReactElement {
   const router = useRouter();
@@ -273,18 +390,7 @@ export default function ReviewFormScreen(): ReactElement {
   }
 
   if (isMovieLoading) {
-    return (
-      <ThemedView style={styles.screen}>
-        <View style={styles.statusWrap}>
-          <BlurView intensity={30} tint="dark" style={styles.statusCard}>
-            <ThemedText type="title">Loading movie</ThemedText>
-            <ThemedText style={[styles.statusCopy, { color: textMuted }]}>
-              Pulling the selected movie details from Supabase before you write.
-            </ThemedText>
-          </BlurView>
-        </View>
-      </ThemedView>
-    );
+    return <ReviewFormLoadingSkeleton />;
   }
 
   if (movieError) {

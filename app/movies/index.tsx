@@ -21,12 +21,14 @@ import {
 import Animated, {
   Easing,
   FadeIn,
+  FadeInDown,
   SlideInDown,
   SlideOutDown,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MotionPressable } from '@/components/motion-pressable';
+import { ShimmerView } from '@/components/shimmer-view';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { Movie } from '@/data/types';
@@ -57,20 +59,37 @@ const SORT_OPTIONS: SortOption[] = [
 ];
 
 // ── Skeleton placeholder ──────────────────────────────────────────────────────
-function SkeletonListCard({ border, surface }: { border: string; surface: string }) {
+const SHIMMER = '#1A1C24';
+
+function SkeletonListCard({ index = 0 }: { index?: number; border?: string; surface?: string }) {
   return (
-    <View style={[styles.listCard, { borderColor: border, backgroundColor: surface }]}>
-      <View style={[styles.skeletonBar, { width: '60%', height: 16, backgroundColor: border }]} />
-      <View style={[styles.skeletonBar, { width: '40%', height: 11, backgroundColor: border, marginTop: 6 }]} />
-    </View>
+    <Animated.View
+      entering={FadeInDown.duration(220).delay(index * 55).easing(Easing.out(Easing.cubic))}
+      style={[
+        styles.listCard,
+        { borderColor: '#1E2028', backgroundColor: '#131620', flexDirection: 'row', gap: 10 },
+      ]}>
+      <ShimmerView color={SHIMMER} style={{ width: 52, height: 74, borderRadius: 8 }} duration={900 + index * 80} />
+      <View style={{ flex: 1, gap: 7, justifyContent: 'center' }}>
+        <ShimmerView color={SHIMMER} style={{ height: 13, width: '70%' }} duration={850 + index * 70} />
+        <ShimmerView color={SHIMMER} style={{ height: 10, width: '45%' }} duration={900 + index * 70} />
+        <ShimmerView color={SHIMMER} style={{ height: 10, width: '35%' }} duration={950 + index * 70} />
+      </View>
+    </Animated.View>
   );
 }
 
-function SkeletonGridCard({ border, surface }: { border: string; surface: string }) {
+function SkeletonGridCard({ index = 0 }: { index?: number; border?: string; surface?: string }) {
   return (
-    <View style={[styles.gridCard, { borderColor: border, backgroundColor: surface, width: POSTER_WIDTH }]}>
-      <View style={[{ aspectRatio: 2 / 3, backgroundColor: border, borderRadius: 0 }]} />
-    </View>
+    <Animated.View
+      entering={FadeInDown.duration(220).delay(index * 55).easing(Easing.out(Easing.cubic))}
+      style={[styles.gridCard, { borderColor: '#1E2028', backgroundColor: '#131620', width: POSTER_WIDTH }]}>
+      <ShimmerView
+        color={SHIMMER}
+        style={{ aspectRatio: 2 / 3, borderRadius: 0, width: '100%' }}
+        duration={900 + index * 80}
+      />
+    </Animated.View>
   );
 }
 
@@ -404,12 +423,12 @@ export default function BrowseMoviesScreen(): ReactElement {
         <View style={styles.skeletonContainer}>
           {viewMode === 'list'
             ? Array.from({ length: 5 }).map((_, i) => (
-                <SkeletonListCard key={i} border={border} surface={surface} />
+                <SkeletonListCard key={i} index={i} />
               ))
             : Array.from({ length: 3 }).map((_, i) => (
                 <View key={i} style={styles.gridRow}>
-                  <SkeletonGridCard border={border} surface={surface} />
-                  <SkeletonGridCard border={border} surface={surface} />
+                  <SkeletonGridCard index={i * 2} />
+                  <SkeletonGridCard index={i * 2 + 1} />
                 </View>
               ))}
         </View>

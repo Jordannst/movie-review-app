@@ -12,6 +12,7 @@ import { FeaturedHero } from '@/components/featured-hero';
 import { MotionPressable } from '@/components/motion-pressable';
 import { MovieCard } from '@/components/movie-card';
 import { PrimaryButton } from '@/components/primary-button';
+import { ShimmerView } from '@/components/shimmer-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { profile } from '@/data/profile';
@@ -23,6 +24,63 @@ import { getFeaturedMovie, getMovies } from '@/services/movies';
 const SECTION_ENTER_DURATION = 280;
 const ITEM_STAGGER = 45;
 const DISCOVER_CHIPS = ['Trending', 'New', 'Awarded'] as const;
+const SHIMMER_COLOR = '#1A1C24';
+
+// ── Home Loading Skeleton ────────────────────────────────────────────────────
+function HomeLoadingSkeleton({ topInset }: { topInset: number }) {
+  return (
+    <View style={{ flex: 1 }}>
+      {/* Hero shimmer */}
+      <ShimmerView
+        color={SHIMMER_COLOR}
+        style={{ width: '100%', height: 560 + topInset, borderRadius: 0 }}
+        duration={1100}
+      />
+
+      {/* Greeting shimmer */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 6 }}>
+        <ShimmerView color={SHIMMER_COLOR} style={{ height: 10, width: 80, borderRadius: 4 }} />
+        <ShimmerView color={SHIMMER_COLOR} style={{ height: 18, width: '55%', borderRadius: 6 }} />
+      </View>
+
+      {/* Search bar shimmer */}
+      <ShimmerView
+        color={SHIMMER_COLOR}
+        style={{ height: 48, marginHorizontal: 20, marginTop: 14, borderRadius: 20 }}
+        duration={950}
+      />
+
+      {/* Card skeletons — stagger in */}
+      <View style={{ paddingHorizontal: 20, marginTop: 20, gap: 10 }}>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Animated.View
+            key={i}
+            entering={FadeInDown.duration(240).delay(i * 60).easing(Easing.out(Easing.cubic))}
+            style={{
+              flexDirection: 'row',
+              gap: 10,
+              backgroundColor: '#131620',
+              borderRadius: 12,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: '#1E2028',
+            }}>
+            <ShimmerView
+              color={SHIMMER_COLOR}
+              style={{ width: 48, height: 68, borderRadius: 8 }}
+              duration={900 + i * 80}
+            />
+            <View style={{ flex: 1, gap: 7, justifyContent: 'center' }}>
+              <ShimmerView color={SHIMMER_COLOR} style={{ height: 13, width: '68%', borderRadius: 5 }} duration={850 + i * 70} />
+              <ShimmerView color={SHIMMER_COLOR} style={{ height: 10, width: '42%', borderRadius: 4 }} duration={900 + i * 70} />
+              <ShimmerView color={SHIMMER_COLOR} style={{ height: 10, width: '30%', borderRadius: 4 }} duration={950 + i * 70} />
+            </View>
+          </Animated.View>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 function getEnterAnimation(delay = 0) {
   return FadeInDown.duration(SECTION_ENTER_DURATION)
@@ -152,6 +210,14 @@ export default function HomeScreen(): ReactElement {
       </View>
 
       <SafeAreaView edges={['bottom']} style={styles.safeArea}>
+        {isInitialLoad ? (
+          <ScrollView
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            style={styles.scroll}>
+            <HomeLoadingSkeleton topInset={insets.top} />
+          </ScrollView>
+        ) : (
         <ScrollView
           contentContainerStyle={[
             styles.content,
@@ -263,17 +329,7 @@ export default function HomeScreen(): ReactElement {
           </Animated.View>
 
           {/* ── 6. MOVIE LIST ─────────────────────────────────── */}
-          {isInitialLoad ? (
-            <BlurView
-              intensity={30}
-              tint="dark"
-              style={styles.emptyState}>
-              <ThemedText type="subtitle">Loading movies</ThemedText>
-              <ThemedText style={[styles.emptyStateText, { color: textMuted }]}>
-                Pulling the latest movie catalog from Supabase.
-              </ThemedText>
-            </BlurView>
-          ) : loadError ? (
+          {loadError ? (
             <BlurView
               intensity={30}
               tint="dark"
@@ -306,6 +362,7 @@ export default function HomeScreen(): ReactElement {
             </BlurView>
           )}
         </ScrollView>
+        )}
       </SafeAreaView>
     </ThemedView>
   );
