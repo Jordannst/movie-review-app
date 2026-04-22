@@ -5,6 +5,7 @@ import { type ReactElement } from 'react';
 import 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
+import { AuthProvider } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // Override React Navigation theme backgrounds to match app exactly
@@ -37,43 +38,46 @@ export default function RootLayout(): ReactElement {
   const bgColor = isDark ? Colors.dark.background : Colors.light.background;
 
   return (
-    <ThemeProvider value={isDark ? AppDarkTheme : AppLightTheme}>
-      <Stack
-        screenOptions={{
-          contentStyle: { backgroundColor: bgColor },
-          animation: 'fade',
-        }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="movies/index"
-          options={{
-            headerShown: false,
-            presentation: 'transparentModal',
-            animation: 'none',
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
-        <Stack.Screen
-          name="movies/[id]"
-          options={{
-            headerShown: false,
-            presentation: 'transparentModal',
-            animation: 'none',
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
-        <Stack.Screen
-          name="movies/[id]/reviews"
-          options={{
-            headerShown: false,
-            presentation: 'transparentModal',
-            animation: 'none',
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
-        <Stack.Screen name="reviews/new" options={{ headerShown: false }} />
-      </Stack>
-      <StatusBar style="light" />
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider value={isDark ? AppDarkTheme : AppLightTheme}>
+        <Stack
+          screenOptions={{
+            contentStyle: { backgroundColor: bgColor },
+            animation: 'fade',
+          }}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="movies/index"
+            options={{
+              headerShown: false,
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+          <Stack.Screen
+            name="movies/[id]"
+            options={{
+              headerShown: false,
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+          <Stack.Screen
+            name="movies/[id]/reviews"
+            options={{
+              headerShown: false,
+              presentation: 'transparentModal',
+              animation: 'none',
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+          <Stack.Screen name="reviews/new" options={{ headerShown: false }} />
+        </Stack>
+        <StatusBar style="light" />
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
