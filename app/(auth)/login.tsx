@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,103 +13,139 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { supabase } from '@/lib/supabase';
+import { setSessionPersistence, supabase } from '@/lib/supabase';
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function validateEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+function validateEmail(e: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
 }
 
-// ─── sub-components (stable refs, no inline objects) ────────────────────────
+const FORM_BASE_DELAY = 100;
+const FIELD_STAGGER = 80;
+const ANIM_DURATION = 320;
+const EASING = Easing.out(Easing.cubic);
 
-function HeroSection() {
+function ShimmerButton({
+  onPress,
+  loading,
+  label,
+  delay,
+}: {
+  onPress: () => void;
+  loading: boolean;
+  label: string;
+  delay: number;
+}) {
+  const shimmerX = useSharedValue(-1);
+
+  useEffect(() => {
+    shimmerX.value = withDelay(
+      delay + 400,
+      withTiming(2, { duration: 1200, easing: Easing.inOut(Easing.quad) })
+    );
+  }, [delay, shimmerX]);
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shimmerX.value * 200 }],
+  }));
+
   return (
-    <LinearGradient
-      colors={['#1A1D2A', '#0F111A', '#0B0D12']}
-      locations={[0, 0.55, 1]}
-      style={styles.hero}
-    >
-      {/* Gold ambient glow */}
-      <View style={styles.heroGlow} />
-
-      {/* Film-grain dots pattern */}
-      <View style={styles.heroPattern} />
-
-      <View style={styles.heroContent}>
-        <View style={styles.heroBadgeRow}>
-          <View style={styles.heroBadgeDot} />
-          <Text style={styles.heroBadgeText}>TRACK · REVIEW · DISCOVER</Text>
-        </View>
-        <Text style={styles.heroLogo}>MovieReview</Text>
-        <Text style={styles.heroTagline}>
-          Track every film.{'\n'}Build your streak.{'\n'}Share your taste.
-        </Text>
-      </View>
-    </LinearGradient>
+    <Animated.View entering={FadeInUp.duration(ANIM_DURATION).delay(delay).easing(EASING)}>
+      <Pressable onPress={onPress} disabled={loading}>
+        {({ pressed }) => (
+          <LinearGradient
+            colors={['#F5C451', '#FF8C42']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[s.btn, pressed && s.btnPressed]}
+          >
+            {loading ? (
+              <ActivityIndicator color="#0C0E18" />
+            ) : (
+              <Text style={s.btnText}>{label}</Text>
+            )}
+            <Animated.View style={[s.shimmer, shimmerStyle]} />
+          </LinearGradient>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
-interface InputFieldProps {
+interface FieldProps {
   label: string;
   value: string;
   onChangeText: (t: string) => void;
   placeholder: string;
+  icon: keyof typeof Ionicons.glyphMap;
   secureTextEntry?: boolean;
   keyboardType?: 'default' | 'email-address';
-  autoCapitalize?: 'none' | 'sentences';
+  autoCapitalize?: 'none' | 'sentences' | 'words';
   error?: string;
+  enterDelay: number;
 }
 
-function InputField({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  secureTextEntry = false,
-  keyboardType = 'default',
-  autoCapitalize = 'none',
-  error,
-}: InputFieldProps) {
+function Field({
+  label, value, onChangeText, placeholder, icon,
+  secureTextEntry, keyboardType = 'default', autoCapitalize = 'none',
+  error, enterDelay,
+}: FieldProps) {
   const [focused, setFocused] = useState(false);
+  const borderColors: [string, string] = focused
+    ? ['#F5C451', '#FF8C42']
+    : error
+      ? ['#F04452', '#F04452']
+      : ['rgba(245,196,81,0.2)', 'rgba(255,140,66,0.1)'];
 
   return (
-    <View style={styles.fieldWrapper}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={[
-          styles.input,
-          focused && styles.inputFocused,
-          !!error && styles.inputError,
-        ]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#5A607A"
-        secureTextEntry={secureTextEntry}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        autoCorrect={false}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
-      {!!error && <Text style={styles.fieldError}>{error}</Text>}
-    </View>
+    <Animated.View
+      style={s.fieldWrap}
+      entering={FadeInDown.duration(ANIM_DURATION).delay(enterDelay).easing(EASING)}
+    >
+      <Text style={s.fieldLabel}>{label}</Text>
+      <LinearGradient colors={borderColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.fieldBorder}>
+        <View style={s.fieldInner}>
+          <TextInput
+            style={s.input}
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor="#3A4060"
+            secureTextEntry={secureTextEntry}
+            keyboardType={keyboardType}
+            autoCapitalize={autoCapitalize}
+            autoCorrect={false}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+          />
+          <Ionicons name={icon} size={18} color={focused ? '#F5C451' : 'rgba(255,255,255,0.2)'} style={s.fieldIcon} />
+        </View>
+      </LinearGradient>
+      {!!error && <Text style={s.fieldError}>{error}</Text>}
+    </Animated.View>
   );
 }
-
-// ─── main screen ────────────────────────────────────────────────────────────
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; global?: string }>({});
 
-  const validate = (): boolean => {
+  const validate = () => {
     const next: typeof errors = {};
     if (!email.trim()) next.email = 'Email wajib diisi';
     else if (!validateEmail(email)) next.email = 'Format email tidak valid';
@@ -118,317 +155,127 @@ export default function LoginScreen() {
     return Object.keys(next).length === 0;
   };
 
-  const handleSignIn = async () => {
+  const handleLogin = async () => {
     if (!validate()) return;
-    setIsLoading(true);
+    setLoading(true);
     setErrors({});
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    setIsLoading(false);
-    if (error) {
-      setErrors({ global: error.message });
-    }
-    // Navigation handled by auth guard in root layout
+    await setSessionPersistence(rememberMe);
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    setLoading(false);
+    if (error) setErrors({ global: error.message });
   };
 
-  const goToRegister = () => router.push('/(auth)/register');
+  const d0 = FORM_BASE_DELAY;
+  const d1 = d0 + FIELD_STAGGER;
+  const d2 = d1 + FIELD_STAGGER;
+  const d3 = d2 + FIELD_STAGGER;
+  const d4 = d3 + 150;
+  const d5 = d4 + 200;
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <HeroSection />
-
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView
+        contentContainerStyle={[s.formInner, { paddingBottom: insets.bottom + 24 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={[styles.formScroll, { paddingBottom: insets.bottom + 24 }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+        {!!errors.global && (
+          <View style={s.globalErr}>
+            <Text style={s.globalErrText}>{errors.global}</Text>
+          </View>
+        )}
+
+        <Field label="EMAIL" value={email} onChangeText={setEmail} placeholder="you@email.com" keyboardType="email-address" icon="mail-outline" error={errors.email} enterDelay={d0} />
+        <Field label="PASSWORD" value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry icon="lock-closed-outline" error={errors.password} enterDelay={d1} />
+
+        <Animated.View
+          style={s.optionsRow}
+          entering={FadeInDown.duration(ANIM_DURATION).delay(d2).easing(EASING)}
         >
-          <Text style={styles.formHeading}>Sign in</Text>
-
-          {!!errors.global && (
-            <View style={styles.globalError}>
-              <Text style={styles.globalErrorText}>{errors.global}</Text>
+          <Pressable style={s.rememberRow} onPress={() => setRememberMe(v => !v)} hitSlop={12}>
+            <View style={[s.checkbox, rememberMe && s.checkboxOn]}>
+              {rememberMe && <Ionicons name="checkmark" size={12} color="#0C0E18" />}
             </View>
-          )}
-
-          <InputField
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@email.com"
-            keyboardType="email-address"
-            error={errors.email}
-          />
-          <InputField
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            secureTextEntry
-            error={errors.password}
-          />
-
-          <Pressable style={styles.forgotBtn} hitSlop={8}>
-            <Text style={styles.forgotText}>Forgot password?</Text>
+            <Text style={s.rememberText}>Remember me</Text>
           </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed]}
-            onPress={handleSignIn}
-            disabled={isLoading}
-          >
-            {isLoading
-              ? <ActivityIndicator color="#0B0D12" />
-              : <Text style={styles.primaryBtnText}>Sign in →</Text>
-            }
+          <Pressable hitSlop={12}>
+            <Text style={s.forgotText}>Forgot Password?</Text>
           </Pressable>
+        </Animated.View>
 
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
+        <ShimmerButton onPress={handleLogin} loading={loading} label="LOG IN" delay={d3} />
 
-          <Pressable style={({ pressed }) => [styles.ghostBtn, pressed && styles.ghostBtnPressed]}>
-            <Text style={styles.googleG}>G</Text>
-            <Text style={styles.ghostBtnText}>Continue with Google</Text>
+        <Animated.View
+          style={s.dividerRow}
+          entering={FadeIn.duration(ANIM_DURATION).delay(d4).easing(EASING)}
+        >
+          <LinearGradient colors={['transparent', 'rgba(255,255,255,0.08)', 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.dividerLine} />
+          <Text style={s.dividerText}>OR</Text>
+          <LinearGradient colors={['transparent', 'rgba(255,255,255,0.08)', 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.dividerLine} />
+        </Animated.View>
+
+        <Animated.View
+          style={s.socialRow}
+          entering={FadeIn.duration(ANIM_DURATION).delay(d4).easing(EASING)}
+        >
+          <Pressable style={({ pressed }) => [s.socialBtn, pressed && s.socialBtnPressed]}>
+            <Text style={s.socialText}>G   Google</Text>
           </Pressable>
+          <Pressable style={({ pressed }) => [s.socialBtn, pressed && s.socialBtnPressed]}>
+            <Text style={s.socialText}>🍎  Apple</Text>
+          </Pressable>
+        </Animated.View>
 
-          <View style={styles.footerRow}>
-            <Text style={styles.footerText}>New here? </Text>
-            <Pressable onPress={goToRegister} hitSlop={8}>
-              <Text style={styles.footerLink}>Create account</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+        <Animated.View
+          style={s.footerRow}
+          entering={FadeIn.duration(ANIM_DURATION).delay(d5).easing(EASING)}
+        >
+          <Text style={s.footerText}>New here? </Text>
+          <Pressable onPress={() => router.push('/(auth)/register')} hitSlop={12}>
+            <Text style={s.footerLink}>SIGN UP</Text>
+          </Pressable>
+        </Animated.View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
-// ─── styles ─────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  flex: { flex: 1 },
+  formInner: { paddingHorizontal: 20, paddingTop: 12 },
+  globalErr: { backgroundColor: '#2A1015', borderRadius: 12, padding: 16, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: '#F04452' },
+  globalErrText: { fontSize: 14, color: '#F04452', fontWeight: '500' },
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#0B0D12',
-  },
-  flex: {
-    flex: 1,
-  },
+  fieldWrap: { marginBottom: 16 },
+  fieldLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: '#8E9BB0', marginBottom: 6, textTransform: 'uppercase' },
+  fieldBorder: { borderRadius: 14, padding: 2 },
+  fieldInner: { backgroundColor: '#141828', borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingRight: 14 },
+  input: { flex: 1, height: 48, fontSize: 15, color: '#fff', paddingHorizontal: 14 },
+  fieldIcon: { marginLeft: 4 },
+  fieldError: { fontSize: 12, color: '#F04452', marginTop: 6, marginLeft: 4 },
 
-  // Hero
-  hero: {
-    height: 220,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  heroGlow: {
-    position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: '#F5C451',
-    opacity: 0.07,
-  },
-  heroPattern: {
-    position: 'absolute',
-    inset: 0,
-    opacity: 0.04,
-  },
-  heroContent: {
-    position: 'absolute',
-    bottom: 24,
-    left: 24,
-  },
-  heroBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  heroBadgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#F5C451',
-  },
-  heroBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.8,
-    color: '#F5C451',
-  },
-  heroLogo: {
-    fontSize: 26,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-    color: '#F5F7FA',
-    marginBottom: 4,
-  },
-  heroTagline: {
-    fontSize: 13,
-    color: '#5A607A',
-    lineHeight: 20,
-  },
+  optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, marginTop: -4 },
+  rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 2, borderColor: '#5A6682', alignItems: 'center', justifyContent: 'center' },
+  checkboxOn: { backgroundColor: '#F5C451', borderColor: '#F5C451' },
+  rememberText: { fontSize: 13, color: '#5A6682', fontWeight: '500' },
+  forgotText: { fontSize: 12, fontWeight: '700', color: '#F5C451' },
 
-  // Form
-  formScroll: {
-    padding: 24,
-  },
-  formHeading: {
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    color: '#F5F7FA',
-    marginBottom: 20,
-  },
+  btn: { height: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', shadowColor: '#F5C451', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 18, elevation: 10 },
+  btnPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
+  btnText: { fontSize: 15, fontWeight: '800', color: '#0C0E18', letterSpacing: 0.3 },
+  shimmer: { position: 'absolute', top: 0, bottom: 0, width: 60, backgroundColor: 'rgba(255,255,255,0.25)', transform: [{ skewX: '-20deg' }] },
 
-  // Global error
-  globalError: {
-    backgroundColor: '#2A1015',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    borderLeftWidth: 3,
-    borderLeftColor: '#F04452',
-  },
-  globalErrorText: {
-    fontSize: 13,
-    color: '#F04452',
-  },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 16 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontSize: 11, color: '#3A4060', fontWeight: '600' },
 
-  // Field
-  fieldWrapper: {
-    marginBottom: 14,
-  },
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    color: '#5A607A',
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  input: {
-    height: 48,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2A3142',
-    backgroundColor: '#141923',
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: '#F5F7FA',
-  },
-  inputFocused: {
-    borderColor: '#F5C451',
-    backgroundColor: '#141923',
-  },
-  inputError: {
-    borderColor: '#F04452',
-  },
-  fieldError: {
-    fontSize: 11,
-    color: '#F04452',
-    marginTop: 4,
-  },
+  socialRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+  socialBtn: { flex: 1, height: 44, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', backgroundColor: 'rgba(255,255,255,0.03)', alignItems: 'center', justifyContent: 'center' },
+  socialBtnPressed: { backgroundColor: 'rgba(255,255,255,0.06)' },
+  socialText: { fontSize: 13, fontWeight: '600', color: '#8E9BB0' },
 
-  // Forgot
-  forgotBtn: {
-    alignSelf: 'flex-end',
-    marginBottom: 20,
-    marginTop: -4,
-  },
-  forgotText: {
-    fontSize: 12,
-    color: '#5A607A',
-  },
-
-  // Primary button
-  primaryBtn: {
-    height: 50,
-    backgroundColor: '#F5C451',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryBtnPressed: {
-    backgroundColor: '#D9A83A',
-  },
-  primaryBtnText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0B0D12',
-    letterSpacing: 0.2,
-  },
-
-  // Divider
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#2A3142',
-  },
-  dividerText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: '#3A4060',
-  },
-
-  // Ghost button
-  ghostBtn: {
-    height: 46,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#2A3142',
-    backgroundColor: '#141923',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  ghostBtnPressed: {
-    backgroundColor: '#1C2230',
-  },
-  googleG: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#F5F7FA',
-  },
-  ghostBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#98A2B3',
-  },
-
-  // Footer
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  footerText: {
-    fontSize: 13,
-    color: '#5A607A',
-  },
-  footerLink: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#F5C451',
-  },
+  footerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 16 },
+  footerText: { fontSize: 13, color: '#5A6682' },
+  footerLink: { fontSize: 13, fontWeight: '700', color: '#F5C451' },
 });
