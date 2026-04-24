@@ -1,4 +1,4 @@
-import { type ReactElement, useEffect, useState } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { MotionPressable } from '@/components/motion-pressable';
@@ -24,6 +24,16 @@ function formatReviewDate(createdAt: string): string {
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+/**
+ * Return "Edited <date>" label when the review has been edited
+ * after initial creation. Compared by date (YYYY-MM-DD) granularity.
+ */
+function formatEditedLabel(review: Review): string | null {
+  if (!review.updatedAt) return null;
+  if (review.updatedAt === review.createdAt) return null;
+  return `Edited ${formatReviewDate(review.updatedAt)}`;
 }
 
 export function ReviewCard({
@@ -68,12 +78,22 @@ export function ReviewCard({
     setLocalIsSpoilerRevealed(false);
   }
 
+  const editedLabel = formatEditedLabel(review);
+
   return (
     <View style={[styles.card, { backgroundColor: surface, borderColor: border }, style]}>
       <View style={styles.headerRow}>
         <View style={styles.headerText}>
           <ThemedText type="defaultSemiBold">{review.authorName}</ThemedText>
-          <ThemedText style={[styles.date, { color: textMuted }]}>{formatReviewDate(review.createdAt)}</ThemedText>
+          <View style={styles.dateRow}>
+            <ThemedText style={[styles.date, { color: textMuted }]}>{formatReviewDate(review.createdAt)}</ThemedText>
+            {editedLabel ? (
+              <>
+                <ThemedText style={[styles.dateDot, { color: textMuted }]}>•</ThemedText>
+                <ThemedText style={[styles.editedLabel, { color: accent }]}>{editedLabel}</ThemedText>
+              </>
+            ) : null}
+          </View>
         </View>
 
         {review.containsSpoilers ? (
@@ -168,6 +188,22 @@ const styles = StyleSheet.create({
   date: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  dateDot: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginHorizontal: 6,
+  },
+  editedLabel: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '600',
+    fontStyle: 'italic',
   },
   badge: {
     borderRadius: 999,

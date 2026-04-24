@@ -24,6 +24,8 @@ export type Review = {
   tags?: string[];
   containsSpoilers?: boolean;
   createdAt: string;
+  /** Null if the review has never been edited. */
+  updatedAt?: string | null;
 };
 
 export type Profile = {

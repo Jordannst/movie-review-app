@@ -1,25 +1,25 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { startTransition, type ReactElement, useEffect, useRef, useState } from 'react';
+import { startTransition, useEffect, useRef, useState, type ReactElement } from 'react';
 import {
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import Animated, {
-  Easing,
-  FadeIn,
-  FadeInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withTiming,
+    Easing,
+    FadeIn,
+    FadeInDown,
+    useAnimatedStyle,
+    useSharedValue,
+    withSequence,
+    withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MotionPressable } from '@/components/motion-pressable';
 import { PrimaryButton } from '@/components/primary-button';
@@ -31,7 +31,7 @@ import { Movie, Review } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getMovieById } from '@/services/movies';
 import { getCurrentUserProfile } from '@/services/profile';
-import { createReview } from '@/services/reviews';
+import { getUserReviewForMovie, upsertReview } from '@/services/reviews';
 
 // ── Constants ─────────────────────────────────────────────
 const MAX_RATING = 5;
@@ -115,7 +115,9 @@ type BannerHeaderProps = {
   onBack: () => void;
 };
 
-function BannerHeader({ accent, movieTitle, movieYear, onBack }: BannerHeaderProps): ReactElement {
+type BannerHeaderPropsWithMode = BannerHeaderProps & { isEditing?: boolean };
+
+function BannerHeader({ accent, movieTitle, movieYear, onBack, isEditing }: BannerHeaderPropsWithMode): ReactElement {
   const insets = useSafeAreaInsets();
 
   return (
@@ -152,13 +154,13 @@ function BannerHeader({ accent, movieTitle, movieYear, onBack }: BannerHeaderPro
         {/* Bottom content — pill + title */}
         <View style={styles.bannerContent}>
           <BlurView intensity={22} tint="dark" style={styles.movieContextPill}>
-            <ThemedText style={styles.reviewingLabel}>Reviewing</ThemedText>
+            <ThemedText style={styles.reviewingLabel}>{isEditing ? 'Editing' : 'Reviewing'}</ThemedText>
             <ThemedText style={[styles.movieContextTitle, { color: accent }]}>
               {movieTitle}{movieYear}
             </ThemedText>
           </BlurView>
           <ThemedText type="title" style={styles.pageTitle}>
-            Your take. 🎬
+            {isEditing ? 'Refine your take. ✏️' : 'Your take. 🎬'}
           </ThemedText>
         </View>
       </View>
@@ -288,6 +290,7 @@ export default function ReviewFormScreen(): ReactElement {
   const { movieId } = useLocalSearchParams<{ movieId?: string | string[] }>();
   const resolvedMovieId = Array.isArray(movieId) ? movieId[0] : movieId;
   const [movie, setMovie] = useState<Movie | null>(null);
+  const [existingReview, setExistingReview] = useState<Review | null>(null);
   const [isMovieLoading, setIsMovieLoading] = useState(true);
   const [movieError, setMovieError] = useState<string | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
@@ -302,6 +305,8 @@ export default function ReviewFormScreen(): ReactElement {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const isEditing = Boolean(existingReview);
+
   const accent = useThemeColor({}, 'accent');
   const textMuted = useThemeColor({}, 'textMuted');
   const text = useThemeColor({}, 'text');
@@ -312,6 +317,7 @@ export default function ReviewFormScreen(): ReactElement {
     async function loadMovie() {
       if (!resolvedMovieId) {
         setMovie(null);
+        setExistingReview(null);
         setMovieError(null);
         setIsMovieLoading(false);
         return;
@@ -321,12 +327,30 @@ export default function ReviewFormScreen(): ReactElement {
       setMovieError(null);
 
       try {
-        const movieResult = await getMovieById(resolvedMovieId);
+        // Load film + review existing milik user secara paralel
+        const existingReviewPromise = user
+          ? getUserReviewForMovie(user.id, resolvedMovieId).catch(() => null)
+          : Promise.resolve(null);
+
+        const [movieResult, existing] = await Promise.all([
+          getMovieById(resolvedMovieId),
+          existingReviewPromise,
+        ]);
 
         if (!isActive) return;
 
         startTransition(() => {
           setMovie(movieResult);
+          setExistingReview(existing);
+
+          // Prefill form kalau user sudah pernah review film ini
+          if (existing) {
+            setRating(existing.rating);
+            setTitle(existing.title);
+            setComment(existing.body);
+            setContainsSpoilers(existing.containsSpoilers ?? false);
+            setSelectedTags(new Set(existing.tags ?? []));
+          }
         });
       } catch (error) {
         if (!isActive) return;
@@ -343,7 +367,7 @@ export default function ReviewFormScreen(): ReactElement {
     return () => {
       isActive = false;
     };
-  }, [resolvedMovieId, reloadVersion]);
+  }, [resolvedMovieId, reloadVersion, user]);
 
   const ratingLabel = RATING_LABELS[rating] ?? '';
   const titleCharsLeft = MAX_TITLE_CHARS - title.length;
@@ -388,7 +412,7 @@ export default function ReviewFormScreen(): ReactElement {
 
     try {
       const profile = await getCurrentUserProfile();
-      const review = await createReview({
+      const review = await upsertReview({
         movieId: movie.id,
         userId: user.id,
         authorName: resolveAuthorName(profile?.name),
@@ -400,6 +424,7 @@ export default function ReviewFormScreen(): ReactElement {
       });
 
       setSubmittedReview(review);
+      setExistingReview(review);
       setSubmitted(true);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Failed to save review to Supabase.');
@@ -423,12 +448,18 @@ export default function ReviewFormScreen(): ReactElement {
             <View style={[styles.successIconWrap, { borderColor: accent }]}>
               <MaterialIcons color={accent} name="check" size={32} />
             </View>
-            <ThemedText style={[styles.successKicker, { color: accent }]}>Review submitted</ThemedText>
-            <ThemedText type="title">Nice — your take is in! 🎬</ThemedText>
+            <ThemedText style={[styles.successKicker, { color: accent }]}>
+              {isEditing ? 'Review updated' : 'Review submitted'}
+            </ThemedText>
+            <ThemedText type="title">
+              {isEditing ? 'Nice — changes saved! ✏️' : 'Nice — your take is in! 🎬'}
+            </ThemedText>
             <ThemedText style={[styles.successCopy, { color: textMuted }]}>
-              Your review for{' '}
+              {isEditing ? 'Your updated review for ' : 'Your review for '}
               <ThemedText style={{ fontWeight: '700' }}>{movieTitle}</ThemedText>{' '}
-              has been posted and will appear in the movie&apos;s community reviews.
+              {isEditing
+                ? 'sekarang menampilkan perubahan terbaru di feed komunitas.'
+                : 'has been posted and will appear in the movie\u2019s community reviews.'}
             </ThemedText>
             {submittedReview ? (
               <ThemedText style={[styles.successMeta, { color: textMuted }]}>
@@ -501,6 +532,7 @@ export default function ReviewFormScreen(): ReactElement {
           movieTitle={movieTitle}
           movieYear={movieYear}
           onBack={() => router.back()}
+          isEditing={isEditing}
         />
 
         {/* ── 2. Rating ────────────────────────────────────── */}
@@ -668,7 +700,15 @@ export default function ReviewFormScreen(): ReactElement {
               ) : null}
               <PrimaryButton
                 disabled={!canSubmit}
-                label={isSubmitting ? 'Submitting...' : 'Submit Review'}
+                label={
+                  isSubmitting
+                    ? isEditing
+                      ? 'Saving...'
+                      : 'Submitting...'
+                    : isEditing
+                      ? 'Save Changes'
+                      : 'Submit Review'
+                }
                 onPress={handleSubmit}
               />
             </BlurView>

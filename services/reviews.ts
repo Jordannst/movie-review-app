@@ -1,5 +1,5 @@
-import { supabase } from '@/lib/supabase';
 import { Review } from '@/data/types';
+import { supabase } from '@/lib/supabase';
 
 export type ReviewSortBy = 'newest' | 'top-rated';
 
@@ -21,6 +21,7 @@ const DEFAULT_REVIEW_PAGE_SIZE = 12;
 
 /** Map Supabase snake_case row → camelCase Review */
 export function toReview(row: Record<string, unknown>): Review {
+  const rawUpdatedAt = row.updated_at as string | null | undefined;
   return {
     id:               row.id as string,
     movieId:          row.movie_id as string,
@@ -31,6 +32,7 @@ export function toReview(row: Record<string, unknown>): Review {
     tags:             (row.tags as string[]) ?? [],
     containsSpoilers: (row.contains_spoilers as boolean) ?? false,
     createdAt:        (row.created_at as string).slice(0, 10), // 'YYYY-MM-DD'
+    updatedAt:        rawUpdatedAt ? rawUpdatedAt.slice(0, 10) : null,
   };
 }
 
@@ -89,7 +91,7 @@ export async function getRecentReviews(limit = 20): Promise<Review[]> {
   return (data ?? []).map(toReview);
 }
 
-type CreateReviewInput = {
+export type UpsertReviewInput = {
   movieId: string;
   userId: string;
   authorName: string;
@@ -100,23 +102,57 @@ type CreateReviewInput = {
   containsSpoilers?: boolean;
 };
 
-/** Kirim review baru ke Supabase */
-export async function createReview(input: CreateReviewInput): Promise<Review> {
+/**
+ * Cek apakah user sudah punya review untuk film ini.
+ * Return null kalau belum ada.
+ */
+export async function getUserReviewForMovie(
+  userId: string,
+  movieId: string
+): Promise<Review | null> {
   const { data, error } = await supabase
     .from('reviews')
-    .insert({
-      movie_id:          input.movieId,
-      user_id:           input.userId,
-      author_name:       input.authorName,
-      title:             input.title,
-      body:              input.body,
-      rating:            input.rating,
-      tags:              input.tags ?? [],
-      contains_spoilers: input.containsSpoilers ?? false,
-    })
+    .select('*')
+    .eq('user_id', userId)
+    .eq('movie_id', movieId)
+    .maybeSingle();
+
+  if (error) throw new Error(`getUserReviewForMovie: ${error.message}`);
+  return data ? toReview(data) : null;
+}
+
+/**
+ * Simpan review — insert kalau user belum pernah review film ini,
+ * atau update review existing (unique constraint `reviews_user_movie_unique`
+ * memastikan 1 user = 1 review per film).
+ *
+ * Trigger DB akan set `updated_at = now()` saat baris di-update.
+ */
+export async function upsertReview(input: UpsertReviewInput): Promise<Review> {
+  const payload = {
+    movie_id:          input.movieId,
+    user_id:           input.userId,
+    author_name:       input.authorName,
+    title:             input.title,
+    body:              input.body,
+    rating:            input.rating,
+    tags:              input.tags ?? [],
+    contains_spoilers: input.containsSpoilers ?? false,
+  };
+
+  const { data, error } = await supabase
+    .from('reviews')
+    .upsert(payload, { onConflict: 'user_id,movie_id' })
     .select()
     .single();
 
-  if (error) throw new Error(`createReview: ${error.message}`);
+  if (error) throw new Error(`upsertReview: ${error.message}`);
   return toReview(data);
 }
+
+/**
+ * @deprecated Gunakan `upsertReview` untuk mematuhi aturan
+ * "1 review per user per film". Fungsi ini tetap ada untuk
+ * backwards-compatibility dengan kode lama.
+ */
+export const createReview = upsertReview;

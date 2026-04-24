@@ -1,8 +1,9 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { startTransition, type ReactElement, useEffect, useState } from 'react';
+import { startTransition, useCallback, useState, type ReactElement } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,10 +14,11 @@ import { ReviewCard } from '@/components/review-card';
 import { ShimmerView } from '@/components/shimmer-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useAuth } from '@/contexts/auth-context';
 import { Movie, Review } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getMovieById } from '@/services/movies';
-import { getReviewsForMovie } from '@/services/reviews';
+import { getReviewsForMovie, getUserReviewForMovie } from '@/services/reviews';
 
 const SECTION_ENTER_DURATION = 300;
 const ITEM_STAGGER = 40;
@@ -155,10 +157,12 @@ function formatRuntime(minutes: number): string {
 
 export default function MovieDetailScreen(): ReactElement {
   const router = useRouter();
+  const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string | string[] }>();
   const movieId = Array.isArray(id) ? id[0] : id;
   const [movie, setMovie] = useState<Movie | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [userReview, setUserReview] = useState<Review | null>(null);
   const [isMovieLoading, setIsMovieLoading] = useState(true);
   const [movieError, setMovieError] = useState<string | null>(null);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
@@ -170,72 +174,88 @@ export default function MovieDetailScreen(): ReactElement {
   const insets = useSafeAreaInsets();
   const overlayTop = insets.top + 12;
 
-  useEffect(() => {
-    let isActive = true;
+  // Pakai useFocusEffect supaya state (termasuk userReview) ter-refresh
+  // setiap kali user kembali dari layar reviews/new.
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
 
-    async function loadMovieDetail() {
-      if (!movieId) {
-        setMovie(null);
-        setReviews([]);
-        setMovieError(null);
-        setReviewsError(null);
-        setIsMovieLoading(false);
-        return;
-      }
-
-      setIsMovieLoading(true);
-      setMovieError(null);
-      setReviewsError(null);
-
-      try {
-        const movieResult = await getMovieById(movieId);
-
-        if (!isActive) return;
-
-        startTransition(() => {
-          setMovie(movieResult);
-        });
-
-        if (!movieResult) {
+      async function loadMovieDetail() {
+        if (!movieId) {
+          setMovie(null);
           setReviews([]);
+          setUserReview(null);
+          setMovieError(null);
+          setReviewsError(null);
+          setIsMovieLoading(false);
           return;
         }
 
+        setIsMovieLoading(true);
+        setMovieError(null);
+        setReviewsError(null);
+
         try {
-          const reviewResults = await getReviewsForMovie(movieId, {
-            page: 1,
-            pageSize: 2,
-            sortBy: 'newest',
-          });
+          const movieResult = await getMovieById(movieId);
 
           if (!isActive) return;
 
           startTransition(() => {
-            setReviews(reviewResults.reviews);
+            setMovie(movieResult);
           });
+
+          if (!movieResult) {
+            setReviews([]);
+            setUserReview(null);
+            return;
+          }
+
+          // Ambil reviews list + review milik user secara paralel
+          const userReviewPromise = user
+            ? getUserReviewForMovie(user.id, movieId).catch(() => null)
+            : Promise.resolve(null);
+
+          try {
+            const [reviewResults, existingUserReview] = await Promise.all([
+              getReviewsForMovie(movieId, {
+                page: 1,
+                pageSize: 2,
+                sortBy: 'newest',
+              }),
+              userReviewPromise,
+            ]);
+
+            if (!isActive) return;
+
+            startTransition(() => {
+              setReviews(reviewResults.reviews);
+              setUserReview(existingUserReview);
+            });
+          } catch (error) {
+            if (!isActive) return;
+            setReviews([]);
+            setUserReview(null);
+            setReviewsError(
+              error instanceof Error ? error.message : 'Failed to load reviews from Supabase.'
+            );
+          }
         } catch (error) {
           if (!isActive) return;
-          setReviews([]);
-          setReviewsError(
-            error instanceof Error ? error.message : 'Failed to load reviews from Supabase.'
-          );
-        }
-      } catch (error) {
-        if (!isActive) return;
-        setMovieError(error instanceof Error ? error.message : 'Failed to load movie details from Supabase.');
-      } finally {
-        if (isActive) {
-          setIsMovieLoading(false);
+          setMovieError(error instanceof Error ? error.message : 'Failed to load movie details from Supabase.');
+        } finally {
+          if (isActive) {
+            setIsMovieLoading(false);
+          }
         }
       }
-    }
 
-    void loadMovieDetail();
+      void loadMovieDetail();
 
-    return () => {
-      isActive = false;
-    };
-  }, [movieId, reloadVersion]);
+      return () => {
+        isActive = false;
+      };
+    }, [movieId, reloadVersion, user])
+  );
 
   function handleBackToHome(): void {
     router.replace('/');
@@ -281,6 +301,7 @@ export default function MovieDetailScreen(): ReactElement {
   const reviewCountLabel = `${selectedMovie.reviewCount} reviews`;
   const ratingLabel = selectedMovie.averageRating.toFixed(1);
   const reviewPreview = reviews.slice(0, 2);
+  const hasUserReview = Boolean(userReview);
 
   function handleWriteReview(): void {
     router.push({
@@ -391,12 +412,19 @@ export default function MovieDetailScreen(): ReactElement {
               style={styles.ctaGradient}>
               <BlurView intensity={22} tint="dark" style={styles.ctaCard}>
                 <View style={styles.ctaTextBlock}>
-                  <ThemedText style={[styles.ctaKicker, { color: accent }]}>Seen this film?</ThemedText>
+                  <ThemedText style={[styles.ctaKicker, { color: accent }]}>
+                    {hasUserReview ? 'Your review is live' : 'Seen this film?'}
+                  </ThemedText>
                   <ThemedText style={[styles.ctaBody, { color: textMuted }]}>
-                    Share your take with the community — your review helps others decide.
+                    {hasUserReview
+                      ? 'Want to revise? Update your rating or writing anytime.'
+                      : 'Share your take with the community — your review helps others decide.'}
                   </ThemedText>
                 </View>
-                <PrimaryButton label="Write Review" onPress={handleWriteReview} />
+                <PrimaryButton
+                  label={hasUserReview ? 'Edit your review' : 'Write Review'}
+                  onPress={handleWriteReview}
+                />
               </BlurView>
             </LinearGradient>
           </Animated.View>
