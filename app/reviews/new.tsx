@@ -428,7 +428,7 @@ export default function ReviewFormScreen(): ReactElement {
             <ThemedText style={[styles.successCopy, { color: textMuted }]}>
               Your review for{' '}
               <ThemedText style={{ fontWeight: '700' }}>{movieTitle}</ThemedText>{' '}
-              was saved to Supabase and will appear in the movie&apos;s community reviews.
+              has been posted and will appear in the movie&apos;s community reviews.
             </ThemedText>
             {submittedReview ? (
               <ThemedText style={[styles.successMeta, { color: textMuted }]}>

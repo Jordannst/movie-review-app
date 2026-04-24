@@ -7,6 +7,7 @@ const AUTH_STORAGE_KEY = 'movie-review-auth-token';
 const REMEMBER_SESSION_KEY = 'movie-review-remember-session';
 
 let shouldPersistSession = true;
+let ephemeralAuthSession: string | null = null;
 
 function canUsePersistentStorage(): boolean {
   return typeof document !== 'undefined' || globalThis.navigator?.product === 'ReactNative';
@@ -14,24 +15,39 @@ function canUsePersistentStorage(): boolean {
 
 const authStorage = {
   async getItem(key: string) {
-    if (!canUsePersistentStorage()) return null;
+    if (!canUsePersistentStorage()) {
+      return key === AUTH_STORAGE_KEY ? ephemeralAuthSession : null;
+    }
 
     if (key === AUTH_STORAGE_KEY) {
       const rememberSession = await AsyncStorage.getItem(REMEMBER_SESSION_KEY);
-      if (rememberSession === 'false') return null;
+      if (rememberSession === 'false') return ephemeralAuthSession;
     }
     return AsyncStorage.getItem(key);
   },
   async setItem(key: string, value: string) {
-    if (!canUsePersistentStorage()) return;
+    if (!canUsePersistentStorage()) {
+      if (key === AUTH_STORAGE_KEY) {
+        ephemeralAuthSession = value;
+      }
+      return;
+    }
 
     if (key === AUTH_STORAGE_KEY && !shouldPersistSession) {
+      ephemeralAuthSession = value;
       await AsyncStorage.removeItem(key);
       return;
+    }
+    if (key === AUTH_STORAGE_KEY) {
+      ephemeralAuthSession = null;
     }
     await AsyncStorage.setItem(key, value);
   },
   async removeItem(key: string) {
+    if (key === AUTH_STORAGE_KEY) {
+      ephemeralAuthSession = null;
+    }
+
     if (!canUsePersistentStorage()) return;
 
     await AsyncStorage.removeItem(key);
@@ -45,7 +61,11 @@ export async function setSessionPersistence(rememberSession: boolean) {
   await AsyncStorage.setItem(REMEMBER_SESSION_KEY, rememberSession ? 'true' : 'false');
 
   if (!rememberSession) {
+    ephemeralAuthSession = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
     await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+  } else if (ephemeralAuthSession) {
+    await AsyncStorage.setItem(AUTH_STORAGE_KEY, ephemeralAuthSession);
+    ephemeralAuthSession = null;
   }
 }
 
