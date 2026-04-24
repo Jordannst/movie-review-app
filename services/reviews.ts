@@ -91,6 +91,7 @@ export async function getRecentReviews(limit = 20): Promise<Review[]> {
 
 type CreateReviewInput = {
   movieId: string;
+  userId: string;
   authorName: string;
   title: string;
   body: string;
@@ -105,6 +106,7 @@ export async function createReview(input: CreateReviewInput): Promise<Review> {
     .from('reviews')
     .insert({
       movie_id:          input.movieId,
+      user_id:           input.userId,
       author_name:       input.authorName,
       title:             input.title,
       body:              input.body,

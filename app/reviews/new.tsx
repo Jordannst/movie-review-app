@@ -26,12 +26,16 @@ import { PrimaryButton } from '@/components/primary-button';
 import { ShimmerView } from '@/components/shimmer-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Movie } from '@/data/types';
+import { useAuth } from '@/contexts/auth-context';
+import { Movie, Review } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getMovieById } from '@/services/movies';
+import { getCurrentUserProfile } from '@/services/profile';
+import { createReview } from '@/services/reviews';
 
 // ── Constants ─────────────────────────────────────────────
 const MAX_RATING = 5;
+const MAX_TITLE_CHARS = 80;
 const MAX_CHARS = 500;
 const RATING_OPTIONS = Array.from({ length: MAX_RATING }, (_, i) => i + 1);
 const GLASS_BG = 'rgba(255,255,255,0.05)';
@@ -56,6 +60,10 @@ const MOOD_TAGS = [
   'Thought-provoking',
   'Overrated',
 ];
+
+function getMetadataString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
 
 // ── Star button ────────────────────────────────────────────
 type StarButtonProps = {
@@ -276,6 +284,7 @@ function ReviewFormLoadingSkeleton(): ReactElement {
 // ── Main screen ────────────────────────────────────────────
 export default function ReviewFormScreen(): ReactElement {
   const router = useRouter();
+  const { user } = useAuth();
   const { movieId } = useLocalSearchParams<{ movieId?: string | string[] }>();
   const resolvedMovieId = Array.isArray(movieId) ? movieId[0] : movieId;
   const [movie, setMovie] = useState<Movie | null>(null);
@@ -284,10 +293,14 @@ export default function ReviewFormScreen(): ReactElement {
   const [reloadVersion, setReloadVersion] = useState(0);
 
   const [rating, setRating] = useState(4);
+  const [title, setTitle] = useState('');
   const [comment, setComment] = useState('');
   const [containsSpoilers, setContainsSpoilers] = useState(false);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [submitted, setSubmitted] = useState(false);
+  const [submittedReview, setSubmittedReview] = useState<Review | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const accent = useThemeColor({}, 'accent');
   const textMuted = useThemeColor({}, 'textMuted');
@@ -333,11 +346,27 @@ export default function ReviewFormScreen(): ReactElement {
   }, [resolvedMovieId, reloadVersion]);
 
   const ratingLabel = RATING_LABELS[rating] ?? '';
+  const titleCharsLeft = MAX_TITLE_CHARS - title.length;
   const charsLeft = MAX_CHARS - comment.length;
-  const canSubmit = comment.trim().length > 0;
+  const canSubmit =
+    Boolean(movie && user) &&
+    title.trim().length > 0 &&
+    comment.trim().length > 0 &&
+    !isSubmitting;
 
   const movieTitle = movie?.title ?? 'this film';
   const movieYear = movie?.year ? ` · ${movie.year}` : '';
+
+  function resolveAuthorName(profileName?: string | null): string {
+    return (
+      profileName?.trim() ||
+      getMetadataString(user?.user_metadata?.display_name) ||
+      getMetadataString(user?.user_metadata?.name) ||
+      getMetadataString(user?.user_metadata?.full_name) ||
+      user?.email?.split('@')[0] ||
+      'Movie fan'
+    );
+  }
 
   function handleRetryMovie(): void {
     setReloadVersion((current) => current + 1);
@@ -351,7 +380,33 @@ export default function ReviewFormScreen(): ReactElement {
     });
   }
 
-  function handleSubmit(): void { setSubmitted(true); }
+  async function handleSubmit(): Promise<void> {
+    if (!movie || !user || !canSubmit) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const profile = await getCurrentUserProfile();
+      const review = await createReview({
+        movieId: movie.id,
+        userId: user.id,
+        authorName: resolveAuthorName(profile?.name),
+        title: title.trim(),
+        body: comment.trim(),
+        rating,
+        tags: Array.from(selectedTags),
+        containsSpoilers,
+      });
+
+      setSubmittedReview(review);
+      setSubmitted(true);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save review to Supabase.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   // ── Success state ──────────────────────────────────────
   if (submitted) {
@@ -371,9 +426,15 @@ export default function ReviewFormScreen(): ReactElement {
             <ThemedText style={[styles.successKicker, { color: accent }]}>Review submitted</ThemedText>
             <ThemedText type="title">Nice — your take is in! 🎬</ThemedText>
             <ThemedText style={[styles.successCopy, { color: textMuted }]}>
-              This draft is still local to the current prototype flow, but the movie context now comes from Supabase for{' '}
-              <ThemedText style={{ fontWeight: '700' }}>{movieTitle}</ThemedText>.
+              Your review for{' '}
+              <ThemedText style={{ fontWeight: '700' }}>{movieTitle}</ThemedText>{' '}
+              was saved to Supabase and will appear in the movie&apos;s community reviews.
             </ThemedText>
+            {submittedReview ? (
+              <ThemedText style={[styles.successMeta, { color: textMuted }]}>
+                {submittedReview.title}
+              </ThemedText>
+            ) : null}
             {containsSpoilers ? (
               <View style={[styles.spoilerStatusPill, { borderColor: accent }]}>
                 <MaterialIcons color={accent} name="visibility-off" size={16} />
@@ -382,7 +443,7 @@ export default function ReviewFormScreen(): ReactElement {
                 </ThemedText>
               </View>
             ) : null}
-            <PrimaryButton label="Back to Movie" onPress={() => router.back()} />
+            <PrimaryButton label="Back to Movie" onPress={() => movie ? router.replace(`/movies/${movie.id}`) : router.back()} />
           </BlurView>
         </Animated.View>
       </ThemedView>
@@ -540,8 +601,28 @@ export default function ReviewFormScreen(): ReactElement {
           </MotionPressable>
         </Animated.View>
 
-        {/* ── 5. Text area ─────────────────────────────────── */}
+        {/* ── 5. Title ─────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.duration(300).delay(240).easing(Easing.out(Easing.cubic))} style={styles.section}>
+          <View style={styles.textareaHeader}>
+            <ThemedText style={[styles.sectionLabel, { color: textMuted }]}>Review title</ThemedText>
+            <ThemedText style={[styles.charCount, { color: titleCharsLeft < 15 ? '#f97316' : textMuted }]}>
+              {title.length} / {MAX_TITLE_CHARS}
+            </ThemedText>
+          </View>
+          <TextInput
+            accessibilityLabel="Write your review title"
+            maxLength={MAX_TITLE_CHARS}
+            onChangeText={setTitle}
+            placeholder="Give your take a headline"
+            placeholderTextColor="rgba(255,255,255,0.22)"
+            returnKeyType="next"
+            style={[styles.titleInput, { color: text }]}
+            value={title}
+          />
+        </Animated.View>
+
+        {/* ── 6. Text area ─────────────────────────────────── */}
+        <Animated.View entering={FadeInDown.duration(300).delay(280).easing(Easing.out(Easing.cubic))} style={styles.section}>
           <View style={styles.textareaHeader}>
             <ThemedText style={[styles.sectionLabel, { color: textMuted }]}>Your review</ThemedText>
             <ThemedText style={[styles.charCount, { color: charsLeft < 50 ? '#f97316' : textMuted }]}>
@@ -561,9 +642,9 @@ export default function ReviewFormScreen(): ReactElement {
           />
         </Animated.View>
 
-        {/* ── 6. Submit CTA card ───────────────────────────── */}
+        {/* ── 7. Submit CTA card ───────────────────────────── */}
         <Animated.View
-          entering={FadeInDown.duration(300).delay(300).easing(Easing.out(Easing.cubic))}
+          entering={FadeInDown.duration(300).delay(340).easing(Easing.out(Easing.cubic))}
           style={styles.ctaWrap}>
           <LinearGradient
             colors={['rgba(124,58,237,0.18)', 'rgba(59,130,246,0.10)']}
@@ -577,7 +658,19 @@ export default function ReviewFormScreen(): ReactElement {
                 will appear in the community feed
                 {containsSpoilers ? ' with a spoiler warning.' : '.'}
               </ThemedText>
-              <PrimaryButton disabled={!canSubmit} label="Submit Review" onPress={handleSubmit} />
+              {!user ? (
+                <ThemedText style={styles.submitError}>
+                  Sign in again before submitting this review.
+                </ThemedText>
+              ) : null}
+              {submitError ? (
+                <ThemedText style={styles.submitError}>{submitError}</ThemedText>
+              ) : null}
+              <PrimaryButton
+                disabled={!canSubmit}
+                label={isSubmitting ? 'Submitting...' : 'Submit Review'}
+                onPress={handleSubmit}
+              />
             </BlurView>
           </LinearGradient>
         </Animated.View>
@@ -803,6 +896,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 14,
   },
+  titleInput: {
+    minHeight: 50,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    backgroundColor: GLASS_BG,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    fontSize: 15,
+    lineHeight: 20,
+  },
   textArea: {
     minHeight: 140,
     borderRadius: 18,
@@ -873,6 +977,16 @@ const styles = StyleSheet.create({
   successCopy: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  successMeta: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  submitError: {
+    color: '#F04452',
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   spoilerStatusPill: {
     flexDirection: 'row',
