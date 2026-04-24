@@ -28,6 +28,8 @@ export type Review = {
   updatedAt?: string | null;
 };
 
+export type UserRole = 'user' | 'admin';
+
 export type Profile = {
   id: string;
   name: string;
@@ -36,4 +38,5 @@ export type Profile = {
   bio: string;
   badgeLabel: string;
   favoriteGenres: string[];
+  role: UserRole;
 };

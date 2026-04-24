@@ -1,4 +1,4 @@
-import { Profile, Review } from '@/data/types';
+import { Profile, Review, UserRole } from '@/data/types';
 import { supabase } from '@/lib/supabase';
 import { toReview } from '@/services/reviews';
 
@@ -22,6 +22,9 @@ export function deriveInitials(name?: string | null, email?: string | null): str
 
 /** Map Supabase snake_case row → camelCase Profile */
 function toProfile(row: Record<string, unknown>): Profile {
+  const rawRole = row.role as string | undefined;
+  const role: UserRole = rawRole === 'admin' ? 'admin' : 'user';
+
   return {
     id:             row.id as string,
     name:           row.name as string,
@@ -30,6 +33,7 @@ function toProfile(row: Record<string, unknown>): Profile {
     bio:            row.bio as string,
     badgeLabel:     row.badge_label as string,
     favoriteGenres: (row.favorite_genres as string[]) ?? [],
+    role,
   };
 }
 
@@ -122,6 +126,8 @@ export async function updateProfile(
     bio: input.bio.trim(),
     badge_label: input.badgeLabel.trim() || 'Member',
     favorite_genres: input.favoriteGenres,
+    // NOTE: do not include `role` here — role is privileged and is only
+    // changed server-side (SQL) to prevent client-side privilege escalation.
   };
 
   const { data, error } = await supabase
