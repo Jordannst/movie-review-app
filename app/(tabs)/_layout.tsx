@@ -1,4 +1,4 @@
-import { Redirect, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { type ReactElement } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -13,20 +13,14 @@ export default function TabLayout(): ReactElement {
   const isDark = colorScheme !== 'light';
   const bgColor = isDark ? Colors.dark.background : Colors.light.background;
 
-  const { session, isLoading } = useAuth();
+  const { isLoading } = useAuth();
 
-  // Still loading session from AsyncStorage — show blank screen
   if (isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: '#0B0D12', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color="#F5C451" />
       </View>
     );
-  }
-
-  // Not authenticated → redirect to login
-  if (!session) {
-    return <Redirect href="/(auth)/login" />;
   }
 
   return (

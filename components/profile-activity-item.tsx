@@ -5,9 +5,18 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { MotionPressable } from '@/components/motion-pressable';
 import { RatingStars } from '@/components/rating-stars';
 import { ThemedText } from '@/components/themed-text';
-import { ProfileActivity } from '@/data/profile';
 import { Movie } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
+
+type ProfileActivity = {
+  id: string;
+  type: 'reviewed' | 'rated' | 'watchlisted';
+  movieId: Movie['id'];
+  title: string;
+  detail: string;
+  timestampLabel: string;
+  rating?: number;
+};
 
 type ProfileActivityItemProps = {
   activity: ProfileActivity;

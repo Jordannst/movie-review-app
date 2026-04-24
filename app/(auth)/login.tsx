@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -102,6 +102,7 @@ function Field({
   error, enterDelay,
 }: FieldProps) {
   const [focused, setFocused] = useState(false);
+  const [hidden, setHidden] = useState(secureTextEntry);
   const borderColors: [string, string] = focused
     ? ['#F5C451', '#FF8C42']
     : error
@@ -122,14 +123,20 @@ function Field({
             onChangeText={onChangeText}
             placeholder={placeholder}
             placeholderTextColor="#3A4060"
-            secureTextEntry={secureTextEntry}
+            secureTextEntry={hidden}
             keyboardType={keyboardType}
             autoCapitalize={autoCapitalize}
             autoCorrect={false}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
           />
-          <Ionicons name={icon} size={18} color={focused ? '#F5C451' : 'rgba(255,255,255,0.2)'} style={s.fieldIcon} />
+          {secureTextEntry ? (
+            <Pressable onPress={() => setHidden(h => !h)} hitSlop={8}>
+              <Ionicons name={hidden ? 'eye-off-outline' : 'eye-outline'} size={18} color={focused ? '#F5C451' : 'rgba(255,255,255,0.2)'} style={s.fieldIcon} />
+            </Pressable>
+          ) : (
+            <Ionicons name={icon} size={18} color={focused ? '#F5C451' : 'rgba(255,255,255,0.2)'} style={s.fieldIcon} />
+          )}
         </View>
       </LinearGradient>
       {!!error && <Text style={s.fieldError}>{error}</Text>}
@@ -139,6 +146,7 @@ function Field({
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -160,9 +168,15 @@ export default function LoginScreen() {
     setLoading(true);
     setErrors({});
     await setSessionPersistence(rememberMe);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setLoading(false);
-    if (error) setErrors({ global: error.message });
+    if (error) {
+      setErrors({ global: error.message });
+      return;
+    }
+    if (data.session) {
+      router.replace('/(tabs)');
+    }
   };
 
   const d0 = FORM_BASE_DELAY;

@@ -9,6 +9,7 @@ import Animated, {
   FadeInDown,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,20 +29,39 @@ function FilmStrip({ side }: { side: 'left' | 'right' }) {
 }
 
 function WaveTop() {
+  const waveX = useSharedValue(0);
+
+  useEffect(() => {
+    waveX.value = withRepeat(
+      withTiming(1, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    );
+  }, [waveX]);
+
+  const waveStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: waveX.value * 30 - 15 },
+      { scaleX: 1.15 },
+    ],
+  }));
+
   return (
     <Animated.View style={styles.waveWrap} entering={FadeIn.duration(300).delay(650)}>
-      <Svg style={StyleSheet.absoluteFill} width={SCREEN_W} height={56} viewBox="0 0 1440 120" preserveAspectRatio="none">
-        <Defs>
-          <SvgGrad id="wg" x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor="#F5C451" />
-            <Stop offset="1" stopColor="#FF8C42" />
-          </SvgGrad>
-        </Defs>
-        <Path fill="url(#wg)" opacity={0.15} d="M0,40 C240,100 480,0 720,60 C960,120 1200,20 1440,70 L1440,120 L0,120 Z" />
-      </Svg>
-      <Svg style={StyleSheet.absoluteFill} width={SCREEN_W} height={56} viewBox="0 0 1440 120" preserveAspectRatio="none">
-        <Path fill="#0C0E18" d="M0,50 C240,110 480,10 720,65 C960,120 1200,25 1440,75 L1440,120 L0,120 Z" />
-      </Svg>
+      <Animated.View style={[StyleSheet.absoluteFill, waveStyle]}>
+        <Svg style={StyleSheet.absoluteFill} width={SCREEN_W} height={56} viewBox="0 0 1440 120" preserveAspectRatio="none">
+          <Defs>
+            <SvgGrad id="wg" x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0" stopColor="#F5C451" />
+              <Stop offset="1" stopColor="#FF8C42" />
+            </SvgGrad>
+          </Defs>
+          <Path fill="url(#wg)" opacity={0.15} d="M0,40 C240,100 480,0 720,60 C960,120 1200,20 1440,70 L1440,120 L0,120 Z" />
+        </Svg>
+        <Svg style={StyleSheet.absoluteFill} width={SCREEN_W} height={56} viewBox="0 0 1440 120" preserveAspectRatio="none">
+          <Path fill="#0C0E18" d="M0,50 C240,110 480,10 720,65 C960,120 1200,25 1440,75 L1440,120 L0,120 Z" />
+        </Svg>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -96,7 +116,7 @@ export default function AuthLayout() {
   }));
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={styles.root}>
       {/* ── SHARED HERO ───────────────────────────── */}
       <LinearGradient
         colors={['#1E1040', '#0C0E18']}
@@ -118,7 +138,7 @@ export default function AuthLayout() {
 
         {isRegister && (
           <Pressable
-            style={({ pressed }) => [styles.backBtn, pressed && styles.backBtnPressed]}
+            style={({ pressed }) => [styles.backBtn, { top: insets.top + 8 }, pressed && styles.backBtnPressed]}
             onPress={() => router.replace('/(auth)/login')}
             hitSlop={12}
           >
@@ -171,7 +191,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0C0E18' },
 
   hero: {
-    height: 220,
+    height: 280,
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: 48,

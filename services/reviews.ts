@@ -20,7 +20,7 @@ const DEFAULT_REVIEW_PAGE = 1;
 const DEFAULT_REVIEW_PAGE_SIZE = 12;
 
 /** Map Supabase snake_case row → camelCase Review */
-function toReview(row: Record<string, unknown>): Review {
+export function toReview(row: Record<string, unknown>): Review {
   return {
     id:               row.id as string,
     movieId:          row.movie_id as string,

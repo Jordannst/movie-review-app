@@ -1,11 +1,11 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { type ReactElement } from 'react';
+import { type ReactElement, useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { Colors } from '@/constants/theme';
-import { AuthProvider } from '@/contexts/auth-context';
+import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // Override React Navigation theme backgrounds to match app exactly
@@ -40,44 +40,64 @@ export default function RootLayout(): ReactElement {
   return (
     <AuthProvider>
       <ThemeProvider value={isDark ? AppDarkTheme : AppLightTheme}>
-        <Stack
-          screenOptions={{
-            contentStyle: { backgroundColor: bgColor },
-            animation: 'fade',
-          }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="movies/index"
-            options={{
-              headerShown: false,
-              presentation: 'transparentModal',
-              animation: 'none',
-              contentStyle: { backgroundColor: 'transparent' },
-            }}
-          />
-          <Stack.Screen
-            name="movies/[id]"
-            options={{
-              headerShown: false,
-              presentation: 'transparentModal',
-              animation: 'none',
-              contentStyle: { backgroundColor: 'transparent' },
-            }}
-          />
-          <Stack.Screen
-            name="movies/[id]/reviews"
-            options={{
-              headerShown: false,
-              presentation: 'transparentModal',
-              animation: 'none',
-              contentStyle: { backgroundColor: 'transparent' },
-            }}
-          />
-          <Stack.Screen name="reviews/new" options={{ headerShown: false }} />
-        </Stack>
+        <RootNavigator bgColor={bgColor} />
         <StatusBar style="light" />
       </ThemeProvider>
     </AuthProvider>
+  );
+}
+
+function RootNavigator({ bgColor }: { bgColor: string }): ReactElement {
+  const { session, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+    const inAuthGroup = segments[0] === '(auth)';
+    if (session && inAuthGroup) {
+      router.replace('/(tabs)');
+    } else if (!session && !inAuthGroup) {
+      router.replace('/(auth)/login');
+    }
+  }, [session, isLoading, segments, router]);
+
+  return (
+    <Stack
+      screenOptions={{
+        contentStyle: { backgroundColor: bgColor },
+        animation: 'fade',
+      }}>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="movies/index"
+        options={{
+          headerShown: false,
+          presentation: 'transparentModal',
+          animation: 'none',
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      />
+      <Stack.Screen
+        name="movies/[id]"
+        options={{
+          headerShown: false,
+          presentation: 'transparentModal',
+          animation: 'none',
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      />
+      <Stack.Screen
+        name="movies/[id]/reviews"
+        options={{
+          headerShown: false,
+          presentation: 'transparentModal',
+          animation: 'none',
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      />
+      <Stack.Screen name="reviews/new" options={{ headerShown: false }} />
+    </Stack>
   );
 }

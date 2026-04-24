@@ -15,11 +15,12 @@ import { PrimaryButton } from '@/components/primary-button';
 import { ShimmerView } from '@/components/shimmer-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { profile } from '@/data/profile';
+import { useAuth } from '@/contexts/auth-context';
 import { Movie } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTabSwipe } from '@/hooks/use-tab-swipe';
 import { getFeaturedMovie, getMovies } from '@/services/movies';
+import { deriveInitials, getCurrentUserProfile } from '@/services/profile';
 
 const SECTION_ENTER_DURATION = 280;
 const ITEM_STAGGER = 45;
@@ -102,18 +103,30 @@ function getGreeting(): string {
   return 'Good night';
 }
 
+function getMetadataString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
 export default function HomeScreen(): ReactElement {
   const router = useRouter();
+  const { user } = useAuth();
   const accent = useThemeColor({}, 'accent');
   const textMuted = useThemeColor({}, 'textMuted');
   const text = useThemeColor({}, 'text');
   const [query, setQuery] = useState('');
   const [movieItems, setMovieItems] = useState<Movie[]>([]);
   const [featuredMovie, setFeaturedMovie] = useState<Movie | null>(null);
+  const [profileInitials, setProfileInitials] = useState('MR');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
   const swipeHandlers = useTabSwipe();
+  const metadataName = useMemo(
+    () =>
+      getMetadataString(user?.user_metadata?.name) ??
+      getMetadataString(user?.user_metadata?.full_name),
+    [user?.user_metadata]
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -123,13 +136,22 @@ export default function HomeScreen(): ReactElement {
       setLoadError(null);
 
       try {
-        const [moviesData, featured] = await Promise.all([getMovies(), getFeaturedMovie()]);
+        const profilePromise = user ? getCurrentUserProfile().catch(() => null) : Promise.resolve(null);
+        const [moviesData, featured, profileData] = await Promise.all([
+          getMovies(),
+          getFeaturedMovie(),
+          profilePromise,
+        ]);
 
         if (!isActive) return;
 
         startTransition(() => {
           setMovieItems(moviesData);
           setFeaturedMovie(featured ?? moviesData[0] ?? null);
+          setProfileInitials(
+            profileData?.initials?.trim() ||
+              deriveInitials(profileData?.name || metadataName, user?.email)
+          );
         });
       } catch (error) {
         if (!isActive) return;
@@ -146,7 +168,7 @@ export default function HomeScreen(): ReactElement {
     return () => {
       isActive = false;
     };
-  }, [reloadVersion]);
+  }, [metadataName, reloadVersion, user]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const filteredMovies = useMemo(
@@ -166,8 +188,6 @@ export default function HomeScreen(): ReactElement {
         : movieItems,
     [movieItems, normalizedQuery]
   );
-  const movieCountLabel = `${filteredMovies.length} movie${filteredMovies.length === 1 ? '' : 's'}`;
-
   const greeting = useMemo(() => getGreeting(), []);
   const insets = useSafeAreaInsets();
 
@@ -250,7 +270,7 @@ export default function HomeScreen(): ReactElement {
             {/* Mini avatar pill */}
             <BlurView intensity={28} tint="light" style={styles.avatarPill}>
               <ThemedText style={[styles.avatarInitials, { color: accent }]}>
-                {profile.account.initials}
+                {profileInitials}
               </ThemedText>
             </BlurView>
           </Animated.View>
