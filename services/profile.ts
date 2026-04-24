@@ -1,5 +1,5 @@
-import { supabase } from '@/lib/supabase';
 import { Profile, Review } from '@/data/types';
+import { supabase } from '@/lib/supabase';
 import { toReview } from '@/services/reviews';
 
 export type ProfileStats = {
@@ -90,6 +90,54 @@ export async function getProfileStats(userId: string): Promise<ProfileStats> {
     averageRating,
     watchlistCount: watchlistCount ?? 0,
   };
+}
+
+export type UpdateProfileInput = {
+  name: string;
+  username?: string | null;
+  bio: string;
+  badgeLabel: string;
+  favoriteGenres: string[];
+};
+
+/**
+ * Upsert profil user yang sedang login. Membuat row baru kalau belum ada,
+ * kalau sudah ada di-update. Mengembalikan profile terbaru.
+ */
+export async function updateProfile(
+  userId: string,
+  input: UpdateProfileInput,
+  userEmail?: string | null
+): Promise<Profile> {
+  const trimmedUsername = input.username?.trim() || null;
+  const normalizedUsername = trimmedUsername?.startsWith('@')
+    ? trimmedUsername.slice(1)
+    : trimmedUsername;
+
+  const payload = {
+    id: userId,
+    name: input.name.trim(),
+    username: normalizedUsername && normalizedUsername.length > 0 ? normalizedUsername : null,
+    initials: deriveInitials(input.name, userEmail),
+    bio: input.bio.trim(),
+    badge_label: input.badgeLabel.trim() || 'Member',
+    favorite_genres: input.favoriteGenres,
+  };
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .upsert(payload, { onConflict: 'id' })
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error('Username sudah dipakai, pilih yang lain.');
+    }
+    throw new Error(`updateProfile: ${error.message}`);
+  }
+
+  return toProfile(data);
 }
 
 /** Ambil review terbaru milik user tertentu. */

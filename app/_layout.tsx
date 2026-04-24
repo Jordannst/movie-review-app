@@ -98,6 +98,14 @@ function RootNavigator({ bgColor }: { bgColor: string }): ReactElement {
         }}
       />
       <Stack.Screen name="reviews/new" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="profile/edit"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
     </Stack>
   );
 }

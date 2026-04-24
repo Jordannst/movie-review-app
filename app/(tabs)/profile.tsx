@@ -1,8 +1,10 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { startTransition, type ReactElement, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
+import { startTransition, useCallback, useMemo, useState, type ReactElement } from 'react';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { Easing, FadeIn, FadeInDown, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ReviewCard } from '@/components/review-card';
@@ -14,11 +16,11 @@ import { Movie, Profile, Review } from '@/data/types';
 import { useTabSwipe } from '@/hooks/use-tab-swipe';
 import { getFeaturedMovie, getMovies } from '@/services/movies';
 import {
-  deriveInitials,
-  getCurrentUserProfile,
-  getProfileStats,
-  getUserReviews,
-  type ProfileStats,
+    deriveInitials,
+    getCurrentUserProfile,
+    getProfileStats,
+    getUserReviews,
+    type ProfileStats,
 } from '@/services/profile';
 
 const YELLOW = '#F5C842';
@@ -133,8 +135,50 @@ function ProfileLoadingSkeleton(): ReactElement {
 
 export default function ProfileScreen(): ReactElement {
   const router = useRouter();
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { user, isLoading: isAuthLoading, signOut } = useAuth();
   const swipeHandlers = useTabSwipe();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  function handleOpenSettings(): void {
+    setIsSettingsOpen(true);
+  }
+
+  function handleCloseSettings(): void {
+    if (isSigningOut) return;
+    setIsSettingsOpen(false);
+  }
+
+  function handleEditProfile(): void {
+    setIsSettingsOpen(false);
+    router.push('/profile/edit');
+  }
+
+  function handleLogOutPress(): void {
+    Alert.alert(
+      'Log out?',
+      'You can log back in any time with your email and password.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsSigningOut(true);
+              await signOut();
+              setIsSettingsOpen(false);
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Failed to log out.';
+              Alert.alert('Log out failed', message);
+            } finally {
+              setIsSigningOut(false);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   const [profileDetails, setProfileDetails] = useState<Profile | null>(null);
   const [profileStats, setProfileStats] = useState<ProfileStats | null>(null);
@@ -145,65 +189,69 @@ export default function ProfileScreen(): ReactElement {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
 
-  useEffect(() => {
-    let isActive = true;
+  // Refetch on every focus (incl. first mount + returning from Edit Profile modal),
+  // so the UI always reflects the latest data in Supabase.
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
 
-    async function loadProfile() {
-      if (isAuthLoading) return;
+      async function loadProfile() {
+        if (isAuthLoading) return;
 
-      if (!user) {
-        setProfileDetails(null);
-        setProfileStats(null);
-        setRecentReviews([]);
-        setMoviesById({});
-        setFeaturedMovie(null);
-        setLoadError(null);
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      setLoadError(null);
-
-      try {
-        const [profileData, statsData, reviewsData, moviesData, featuredData] = await Promise.all([
-          getCurrentUserProfile(),
-          getProfileStats(user.id),
-          getUserReviews(user.id, 4),
-          getMovies(),
-          getFeaturedMovie(),
-        ]);
-
-        if (!isActive) return;
-
-        const nextMoviesById = moviesData.reduce<Record<string, Movie>>((acc, movie) => {
-          acc[movie.id] = movie;
-          return acc;
-        }, {});
-
-        startTransition(() => {
-          setProfileDetails(profileData);
-          setProfileStats(statsData);
-          setRecentReviews(reviewsData);
-          setMoviesById(nextMoviesById);
-          setFeaturedMovie(featuredData ?? moviesData[0] ?? null);
-        });
-      } catch (error) {
-        if (!isActive) return;
-        setLoadError(error instanceof Error ? error.message : 'Failed to load profile from Supabase.');
-      } finally {
-        if (isActive) {
+        if (!user) {
+          setProfileDetails(null);
+          setProfileStats(null);
+          setRecentReviews([]);
+          setMoviesById({});
+          setFeaturedMovie(null);
+          setLoadError(null);
           setIsLoading(false);
+          return;
+        }
+
+        setIsLoading(true);
+        setLoadError(null);
+
+        try {
+          const [profileData, statsData, reviewsData, moviesData, featuredData] = await Promise.all([
+            getCurrentUserProfile(),
+            getProfileStats(user.id),
+            getUserReviews(user.id, 4),
+            getMovies(),
+            getFeaturedMovie(),
+          ]);
+
+          if (!isActive) return;
+
+          const nextMoviesById = moviesData.reduce<Record<string, Movie>>((acc, movie) => {
+            acc[movie.id] = movie;
+            return acc;
+          }, {});
+
+          startTransition(() => {
+            setProfileDetails(profileData);
+            setProfileStats(statsData);
+            setRecentReviews(reviewsData);
+            setMoviesById(nextMoviesById);
+            setFeaturedMovie(featuredData ?? moviesData[0] ?? null);
+          });
+        } catch (error) {
+          if (!isActive) return;
+          setLoadError(error instanceof Error ? error.message : 'Failed to load profile from Supabase.');
+        } finally {
+          if (isActive) {
+            setIsLoading(false);
+          }
         }
       }
-    }
 
-    void loadProfile();
+      void loadProfile();
 
-    return () => {
-      isActive = false;
-    };
-  }, [isAuthLoading, reloadVersion, user]);
+      return () => {
+        isActive = false;
+      };
+    }, [isAuthLoading, reloadVersion, user])
+  );
 
   const metadataName = useMemo(
     () =>
@@ -309,6 +357,15 @@ export default function ProfileScreen(): ReactElement {
                 <View style={styles.accentBar} />
                 <ThemedText style={styles.ghostNum}>01</ThemedText>
 
+                <Pressable
+                  onPress={handleOpenSettings}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open settings"
+                  style={({ pressed }) => [styles.settingsBtn, pressed && styles.settingsBtnPressed]}>
+                  <Ionicons name="settings-outline" size={20} color="#F5F7FA" />
+                </Pressable>
+
                 <View style={styles.heroBottom}>
                   <View style={styles.avatarSquare}>
                     <ThemedText style={styles.avatarText}>{account.initials}</ThemedText>
@@ -325,6 +382,54 @@ export default function ProfileScreen(): ReactElement {
                   </View>
                 </View>
               </Animated.View>
+
+              {/* ── Settings bottom sheet ────────────────────────── */}
+              <Modal
+                visible={isSettingsOpen}
+                transparent
+                animationType="none"
+                onRequestClose={handleCloseSettings}>
+                <Pressable style={styles.sheetBackdrop} onPress={handleCloseSettings}>
+                  <Animated.View
+                    entering={FadeIn.duration(180)}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                </Pressable>
+                <Animated.View
+                  entering={SlideInDown.duration(280).easing(Easing.out(Easing.cubic))}
+                  exiting={SlideOutDown.duration(220).easing(Easing.in(Easing.cubic))}
+                  style={styles.sheet}>
+                  <View style={styles.sheetHandle} />
+                  <ThemedText style={styles.sheetTitle}>Settings</ThemedText>
+
+                  <Pressable
+                    onPress={handleEditProfile}
+                    disabled={isSigningOut}
+                    style={({ pressed }) => [styles.sheetItem, pressed && styles.sheetItemPressed]}>
+                    <Ionicons name="person-outline" size={20} color="#F5F7FA" />
+                    <ThemedText style={styles.sheetItemLabel}>Edit Profile</ThemedText>
+                    <Ionicons name="chevron-forward" size={18} color={DIM_CLR} />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleLogOutPress}
+                    disabled={isSigningOut}
+                    style={({ pressed }) => [styles.sheetItem, pressed && styles.sheetItemPressed]}>
+                    <Ionicons name="log-out-outline" size={20} color="#F04452" />
+                    <ThemedText style={[styles.sheetItemLabel, styles.sheetItemDanger]}>
+                      {isSigningOut ? 'Logging out…' : 'Log out'}
+                    </ThemedText>
+                    <View style={{ width: 18 }} />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleCloseSettings}
+                    disabled={isSigningOut}
+                    style={({ pressed }) => [styles.sheetCancel, pressed && styles.sheetItemPressed]}>
+                    <ThemedText style={styles.sheetCancelText}>Cancel</ThemedText>
+                  </Pressable>
+                </Animated.View>
+              </Modal>
 
               <View style={styles.body}>
                 <Animated.View entering={getEnterAnimation(80)}>
@@ -772,5 +877,97 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     color: DIM_CLR,
+  },
+
+  settingsBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(20,24,40,0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  settingsBtnPressed: {
+    backgroundColor: 'rgba(20,24,40,0.95)',
+    opacity: 0.9,
+  },
+
+  sheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#141828',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 28,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: BORDER_CLR,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginBottom: 12,
+  },
+  sheetTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    color: DIM_CLR,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  sheetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER_CLR,
+  },
+  sheetItemPressed: {
+    opacity: 0.65,
+  },
+  sheetItemLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#F5F7FA',
+  },
+  sheetItemDanger: {
+    color: '#F04452',
+  },
+  sheetCancel: {
+    marginTop: 14,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: BORDER_CLR,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCancelText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: DIM_CLR,
+    letterSpacing: 0.3,
   },
 });
