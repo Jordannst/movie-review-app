@@ -1,5 +1,5 @@
-import { supabase } from '@/lib/supabase';
 import { Movie } from '@/data/types';
+import { supabase } from '@/lib/supabase';
 
 /** Map Supabase snake_case row → camelCase Movie */
 function toMovie(row: Record<string, unknown>): Movie {
@@ -68,6 +68,35 @@ export async function getFeaturedMovie(): Promise<Movie | null> {
 
   if (err2) throw new Error(`getFeaturedMovie fallback: ${err2.message}`);
   return first ? toMovie(first) : null;
+}
+
+/**
+ * Ambil daftar film featured untuk carousel "Featured Tonight".
+ * Fallback ke top-rated kalau tidak ada film is_featured=true yang ditandai.
+ */
+export async function getFeaturedMovies(limit = 5): Promise<Movie[]> {
+  const { data, error } = await supabase
+    .from('movies')
+    .select('*')
+    .eq('is_featured', true)
+    .order('average_rating', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`getFeaturedMovies: ${error.message}`);
+
+  if (data && data.length > 0) {
+    return data.map(toMovie);
+  }
+
+  // Fallback: top-rated movies
+  const { data: fallback, error: fallbackError } = await supabase
+    .from('movies')
+    .select('*')
+    .order('average_rating', { ascending: false })
+    .limit(limit);
+
+  if (fallbackError) throw new Error(`getFeaturedMovies fallback: ${fallbackError.message}`);
+  return (fallback ?? []).map(toMovie);
 }
 
 export type MovieSortKey = 'rating' | 'year' | 'title';

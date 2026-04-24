@@ -3,12 +3,12 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { startTransition, type ReactElement, useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Dimensions, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { FeaturedHero } from '@/components/featured-hero';
+import { FeaturedCarousel } from '@/components/featured-carousel';
 import { MotionPressable } from '@/components/motion-pressable';
 import { MovieCard } from '@/components/movie-card';
 import { PrimaryButton } from '@/components/primary-button';
@@ -17,9 +17,9 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/contexts/auth-context';
 import { Movie } from '@/data/types';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { useTabSwipe } from '@/hooks/use-tab-swipe';
-import { getFeaturedMovie, getMovies } from '@/services/movies';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { getFeaturedMovies, getMovies } from '@/services/movies';
 import { deriveInitials, getCurrentUserProfile } from '@/services/profile';
 
 const SECTION_ENTER_DURATION = 280;
@@ -115,7 +115,7 @@ export default function HomeScreen(): ReactElement {
   const text = useThemeColor({}, 'text');
   const [query, setQuery] = useState('');
   const [movieItems, setMovieItems] = useState<Movie[]>([]);
-  const [featuredMovie, setFeaturedMovie] = useState<Movie | null>(null);
+  const [featuredMovies, setFeaturedMovies] = useState<Movie[]>([]);
   const [profileInitials, setProfileInitials] = useState('MR');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -137,9 +137,9 @@ export default function HomeScreen(): ReactElement {
 
       try {
         const profilePromise = user ? getCurrentUserProfile().catch(() => null) : Promise.resolve(null);
-        const [moviesData, featured, profileData] = await Promise.all([
+        const [moviesData, featuredList, profileData] = await Promise.all([
           getMovies(),
-          getFeaturedMovie(),
+          getFeaturedMovies(5),
           profilePromise,
         ]);
 
@@ -147,7 +147,13 @@ export default function HomeScreen(): ReactElement {
 
         startTransition(() => {
           setMovieItems(moviesData);
-          setFeaturedMovie(featured ?? moviesData[0] ?? null);
+          // Fallback to first movie kalau service mengembalikan list kosong
+          const carousel = featuredList.length > 0
+            ? featuredList
+            : moviesData[0]
+              ? [moviesData[0]]
+              : [];
+          setFeaturedMovies(carousel);
           setProfileInitials(
             profileData?.initials?.trim() ||
               deriveInitials(profileData?.name || metadataName, user?.email)
@@ -207,15 +213,16 @@ export default function HomeScreen(): ReactElement {
     setReloadVersion((current) => current + 1);
   }
 
-  const isInitialLoad = isLoading && movieItems.length === 0 && !featuredMovie;
+  const heroBackdropMovie = featuredMovies[0] ?? null;
+  const isInitialLoad = isLoading && movieItems.length === 0 && featuredMovies.length === 0;
 
   return (
     <ThemedView style={styles.screen} {...swipeHandlers}>
       {/* ── Ambient backdrop: film colour aura, fades to dark ───────── */}
       <View style={styles.ambientWrap}>
-        {featuredMovie ? (
+        {heroBackdropMovie ? (
           <Image
-            source={{ uri: featuredMovie.backdropUrl }}
+            source={{ uri: heroBackdropMovie.backdropUrl }}
             style={[StyleSheet.absoluteFillObject, { opacity: 0.45 }]}
             contentFit="cover"
             blurRadius={40}
@@ -246,13 +253,13 @@ export default function HomeScreen(): ReactElement {
           showsVerticalScrollIndicator={false}
           style={styles.scroll}>
 
-          {/* ── 1. FEATURED HERO — first thing the user sees ──── */}
-          {!normalizedQuery && featuredMovie ? (
+          {/* ── 1. FEATURED CAROUSEL — first thing the user sees ── */}
+          {!normalizedQuery && featuredMovies.length > 0 ? (
             <Animated.View entering={FadeIn.duration(420)} style={styles.heroWrap}>
-              <FeaturedHero
-                movie={featuredMovie}
+              <FeaturedCarousel
+                movies={featuredMovies}
                 actionLabel="View Details"
-                onActionPress={() => handleOpenMovie(featuredMovie.id)}
+                onActionPress={(movie) => handleOpenMovie(movie.id)}
                 topInset={insets.top}
               />
             </Animated.View>
