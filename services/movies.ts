@@ -101,11 +101,30 @@ export async function getFeaturedMovies(limit = 5): Promise<Movie[]> {
 
 export type MovieSortKey = 'rating' | 'year' | 'title';
 
+/**
+ * Dynamic discovery categories (distinct from static genres).
+ * - `trending`  → sorted by review_count desc (most-discussed)
+ * - `new`       → sorted by year desc (newest first)
+ * - `awarded`   → filtered to average_rating >= AWARDED_THRESHOLD
+ */
+export type MovieCategory = 'trending' | 'new' | 'awarded';
+
+export const AWARDED_THRESHOLD = 4.5;
+
+export function getCategoryLabel(category: MovieCategory): string {
+  switch (category) {
+    case 'trending': return 'Trending Now';
+    case 'new':      return 'New Releases';
+    case 'awarded':  return 'Award-Winning Films';
+  }
+}
+
 export type MoviesFilterParams = {
-  genre?: string;       // undefined or 'All' = no filter
-  sort?: MovieSortKey;  // default: 'rating'
-  page?: number;        // 0-indexed
-  pageSize?: number;    // default 12
+  genre?: string;           // undefined or 'All' = no filter
+  sort?: MovieSortKey;      // default: 'rating' (ignored when category overrides)
+  category?: MovieCategory; // dynamic discovery preset
+  page?: number;            // 0-indexed
+  pageSize?: number;        // default 12
 };
 
 export type MoviesPage = {
@@ -114,11 +133,11 @@ export type MoviesPage = {
   hasMore: boolean;
 };
 
-/** Ambil film dengan filter genre, sorting, dan pagination */
+/** Ambil film dengan filter genre, kategori dinamis, sorting, dan pagination */
 export async function getMoviesFiltered(
   params: MoviesFilterParams = {}
 ): Promise<MoviesPage> {
-  const { genre, sort = 'rating', page = 0, pageSize = 12 } = params;
+  const { genre, sort = 'rating', category, page = 0, pageSize = 12 } = params;
 
   let query = supabase.from('movies').select('*', { count: 'exact' });
 
@@ -127,8 +146,21 @@ export async function getMoviesFiltered(
     query = query.contains('genres', [genre]);
   }
 
-  // Sort
-  if (sort === 'rating') {
+  // Category filter (awarded narrows by rating; trending/new only override sort)
+  if (category === 'awarded') {
+    query = query.gte('average_rating', AWARDED_THRESHOLD);
+  }
+
+  // Sort: category preset overrides user sort for trending/new
+  if (category === 'trending') {
+    query = query
+      .order('review_count', { ascending: false })
+      .order('average_rating', { ascending: false });
+  } else if (category === 'new') {
+    query = query
+      .order('year', { ascending: false })
+      .order('average_rating', { ascending: false });
+  } else if (sort === 'rating') {
     query = query.order('average_rating', { ascending: false });
   } else if (sort === 'year') {
     query = query.order('year', { ascending: false });

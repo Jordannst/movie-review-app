@@ -1,29 +1,29 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  startTransition,
-  type ReactElement,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    startTransition,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactElement,
 } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    ScrollView,
+    StyleSheet,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import Animated, {
-  Easing,
-  FadeIn,
-  FadeInDown,
-  SlideInDown,
-  SlideOutDown,
+    Easing,
+    FadeIn,
+    FadeInDown,
+    SlideInDown,
+    SlideOutDown,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -35,9 +35,11 @@ import { Movie } from '@/data/types';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import {
-  getMoviesFiltered,
-  type MovieSortKey,
-  type MoviesFilterParams,
+    getCategoryLabel,
+    getMoviesFiltered,
+    type MovieCategory,
+    type MovieSortKey,
+    type MoviesFilterParams,
 } from '@/services/movies';
 
 const PAGE_SIZE = 12;
@@ -176,12 +178,23 @@ export default function BrowseMoviesScreen(): ReactElement {
   const border = useThemeColor({}, 'border');
   const textMuted = useThemeColor({}, 'textMuted');
 
-  // Get initial genre from navigation params (when tapped from Home chips)
-  const { genre: initialGenre } = useLocalSearchParams<{ genre?: string }>();
+  // Navigation params (when tapped from Home chips or deep-linked)
+  const { genre: initialGenre, category: initialCategory } = useLocalSearchParams<{
+    genre?: string;
+    category?: string;
+  }>();
 
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedGenre, setSelectedGenre] = useState<string>(initialGenre ?? 'All');
   const [sort, setSort] = useState<MovieSortKey>('rating');
+  const [activeCategory, setActiveCategory] = useState<MovieCategory | null>(
+    initialCategory === 'trending' || initialCategory === 'new' || initialCategory === 'awarded'
+      ? initialCategory
+      : null
+  );
+
+  // Trending/new presets override the user's sort choice.
+  const categoryOverridesSort = activeCategory === 'trending' || activeCategory === 'new';
 
   const [movies, setMovies] = useState<Movie[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -197,9 +210,10 @@ export default function BrowseMoviesScreen(): ReactElement {
   const filterParams = useMemo<MoviesFilterParams>(() => ({
     genre: selectedGenre === 'All' ? undefined : selectedGenre,
     sort,
+    category: activeCategory ?? undefined,
     page: 0,
     pageSize: PAGE_SIZE,
-  }), [selectedGenre, sort]);
+  }), [selectedGenre, sort, activeCategory]);
 
   // Initial load / filter change — reset to page 0
   useEffect(() => {
@@ -234,7 +248,7 @@ export default function BrowseMoviesScreen(): ReactElement {
   // Scroll to top on filter/sort change
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [selectedGenre, sort]);
+  }, [selectedGenre, sort, activeCategory]);
 
   const loadMore = useCallback(async () => {
     if (isFetchingMore || !hasMore || isLoading) return;
@@ -244,6 +258,7 @@ export default function BrowseMoviesScreen(): ReactElement {
       const result = await getMoviesFiltered({
         genre: selectedGenre === 'All' ? undefined : selectedGenre,
         sort,
+        category: activeCategory ?? undefined,
         page,
         pageSize: PAGE_SIZE,
       });
@@ -262,10 +277,25 @@ export default function BrowseMoviesScreen(): ReactElement {
     } finally {
       setIsFetchingMore(false);
     }
-  }, [isFetchingMore, hasMore, isLoading, selectedGenre, sort, page]);
+  }, [isFetchingMore, hasMore, isLoading, selectedGenre, sort, activeCategory, page]);
 
   function handleOpenMovie(id: string) {
     router.push(`/movies/${id}`);
+  }
+
+  /**
+   * Tapping a sort pill while a category overrides sort clears the category.
+   * This lets users gracefully escape a preset by expressing a new sort intent.
+   */
+  function handleSortPress(key: MovieSortKey): void {
+    if (categoryOverridesSort) {
+      setActiveCategory(null);
+    }
+    setSort(key);
+  }
+
+  function handleClearCategory(): void {
+    setActiveCategory(null);
   }
 
   // ── Render Items ─────────────────────────────────────────────────────────
@@ -363,7 +393,28 @@ export default function BrowseMoviesScreen(): ReactElement {
         </View>
       </View>
 
-      {/* ── Genre Chips ──────────────────────────────────────────────────── */}
+      {/* ── Active Category Badge — dismissible ─────────────────── */}
+      {activeCategory ? (
+        <Animated.View
+          entering={FadeIn.duration(260)}
+          style={styles.categoryBadgeRow}>
+          <View style={[styles.categoryBadge, { backgroundColor: `${accent}18`, borderColor: accent }]}>
+            <ThemedText style={[styles.categoryBadgeLabel, { color: accent }]}>
+              {getCategoryLabel(activeCategory)}
+            </ThemedText>
+            <TouchableOpacity
+              accessibilityLabel="Clear category filter"
+              accessibilityRole="button"
+              onPress={handleClearCategory}
+              hitSlop={10}
+              style={[styles.categoryBadgeClose, { borderColor: `${accent}55` }]}>
+              <ThemedText style={[styles.categoryBadgeCloseText, { color: accent }]}>✕</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      ) : null}
+
+      {/* ── Genre Chips ─────────────────────────────────────────── */}
       <Animated.View entering={FadeIn.duration(300).delay(80)}>
         <ScrollView
           horizontal
@@ -397,18 +448,30 @@ export default function BrowseMoviesScreen(): ReactElement {
         </ThemedText>
         <View style={styles.sortPills}>
           {SORT_OPTIONS.map((opt) => {
-            const active = sort === opt.key;
+            const active = sort === opt.key && !categoryOverridesSort;
+            const dimmed = categoryOverridesSort && sort === opt.key;
             return (
               <TouchableOpacity
                 key={opt.key}
-                accessibilityLabel={`Sort by ${opt.label}`}
-                onPress={() => setSort(opt.key)}
+                accessibilityLabel={
+                  categoryOverridesSort
+                    ? `Sort by ${opt.label} (clears active category)`
+                    : `Sort by ${opt.label}`
+                }
+                onPress={() => handleSortPress(opt.key)}
                 style={[
                   styles.sortPill,
                   { borderColor: border, backgroundColor: surfaceMuted },
                   active && { borderColor: accent, backgroundColor: `${accent}18` },
+                  categoryOverridesSort && { opacity: 0.5 },
                 ]}>
-                <ThemedText style={[styles.sortPillText, { color: textMuted }, active && { color: accent }]}>
+                <ThemedText
+                  style={[
+                    styles.sortPillText,
+                    { color: textMuted },
+                    active && { color: accent },
+                    dimmed && { color: textMuted },
+                  ]}>
                   {opt.label}
                 </ThemedText>
               </TouchableOpacity>
@@ -519,6 +582,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toggleIcon: { fontSize: 14 },
+
+  // Category badge
+  categoryBadgeRow: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+  },
+  categoryBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 12,
+    paddingRight: 6,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  categoryBadgeLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  categoryBadgeClose: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryBadgeCloseText: {
+    fontSize: 11,
+    fontWeight: '800',
+    lineHeight: 13,
+  },
 
   // Genre chips
   genreRow: {

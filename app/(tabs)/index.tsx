@@ -19,12 +19,16 @@ import { useAuth } from '@/contexts/auth-context';
 import { Movie } from '@/data/types';
 import { useTabSwipe } from '@/hooks/use-tab-swipe';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { getFeaturedMovies, getMovies } from '@/services/movies';
+import { getFeaturedMovies, getMovies, type MovieCategory } from '@/services/movies';
 import { deriveInitials, getCurrentUserProfile } from '@/services/profile';
 
 const SECTION_ENTER_DURATION = 280;
 const ITEM_STAGGER = 45;
-const DISCOVER_CHIPS = ['Trending', 'New', 'Awarded'] as const;
+const DISCOVER_CHIPS: readonly { label: string; category: MovieCategory }[] = [
+  { label: 'Trending', category: 'trending' },
+  { label: 'New', category: 'new' },
+  { label: 'Awarded', category: 'awarded' },
+] as const;
 const SHIMMER_COLOR = '#1A1C24';
 
 // ── Home Loading Skeleton ────────────────────────────────────────────────────
@@ -201,9 +205,9 @@ export default function HomeScreen(): ReactElement {
     router.push(`/movies/${movieId}`);
   }
 
-  function handleDiscoverPress(genre?: string): void {
-    if (genre) {
-      router.push({ pathname: '/movies' as never, params: { genre } });
+  function handleDiscoverPress(category?: MovieCategory): void {
+    if (category) {
+      router.push({ pathname: '/movies' as never, params: { category } });
     } else {
       router.push('/movies' as never);
     }
@@ -312,11 +316,11 @@ export default function HomeScreen(): ReactElement {
               const isFeaturedChip = index === 0;
               return (
                 <MotionPressable
-                  key={chip}
-                  accessibilityLabel={`Browse ${chip.toLowerCase()} movies`}
+                  key={chip.category}
+                  accessibilityLabel={`Browse ${chip.label.toLowerCase()} movies`}
                   accessibilityRole="button"
                   haptic
-                  onPress={() => handleDiscoverPress(chip)}
+                  onPress={() => handleDiscoverPress(chip.category)}
                   style={[
                     styles.chip,
                     {
@@ -329,7 +333,7 @@ export default function HomeScreen(): ReactElement {
                   ]}>
                   <BlurView intensity={40} tint="dark" style={styles.chipInner}>
                     <ThemedText style={[styles.chipText, isFeaturedChip ? { color: accent } : null]}>
-                      {chip}
+                      {chip.label}
                     </ThemedText>
                   </BlurView>
                 </MotionPressable>
