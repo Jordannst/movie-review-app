@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { type ReactElement, useCallback, useState } from 'react';
+import { type ReactElement, useCallback, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -50,60 +50,92 @@ function Moderation(): ReactElement {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Initial load on focus (stale-while-revalidate)
+  // Generation counter: any "fresh page-0" fetch (focus / refresh / retry) bumps it.
+  // In-flight calls compare their captured generation against current to detect
+  // staleness — prevents loadMore from appending pages that belong to a previous
+  // dataset after a concurrent refresh.
+  const genRef = useRef(0);
+
+  // Initial load on focus
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
+      const myGen = ++genRef.current;
       void getAllReviewsPaginated(0, PAGE_SIZE)
         .then((result) => {
-          if (cancelled) return;
+          if (myGen !== genRef.current) return;
           setRows(result.reviews);
           setTotalCount(result.totalCount);
           setHasMore(result.hasMore);
           setPage(1);
+          setLoadError(null);
         })
         .catch((err) => {
-          if (!cancelled) {
-            Alert.alert(
-              'Failed to load',
-              err instanceof Error ? err.message : 'Unknown error'
-            );
-          }
+          if (myGen !== genRef.current) return;
+          setLoadError(err instanceof Error ? err.message : 'Unknown error');
         })
         .finally(() => {
-          if (!cancelled) setLoading(false);
+          if (myGen !== genRef.current) return;
+          setLoading(false);
         });
       return () => {
-        cancelled = true;
+        // On blur, bump generation so any in-flight call becomes stale and won't setState.
+        genRef.current++;
       };
     }, [])
   );
 
   async function handleRefresh() {
     setRefreshing(true);
+    const myGen = ++genRef.current;
     try {
       const result = await getAllReviewsPaginated(0, PAGE_SIZE);
+      if (myGen !== genRef.current) return;
       setRows(result.reviews);
       setTotalCount(result.totalCount);
       setHasMore(result.hasMore);
       setPage(1);
+      setLoadError(null);
     } catch (err) {
+      if (myGen !== genRef.current) return;
       Alert.alert('Failed to load', err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setRefreshing(false);
     }
   }
 
+  async function handleRetry() {
+    setLoading(true);
+    setLoadError(null);
+    const myGen = ++genRef.current;
+    try {
+      const result = await getAllReviewsPaginated(0, PAGE_SIZE);
+      if (myGen !== genRef.current) return;
+      setRows(result.reviews);
+      setTotalCount(result.totalCount);
+      setHasMore(result.hasMore);
+      setPage(1);
+    } catch (err) {
+      if (myGen !== genRef.current) return;
+      setLoadError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      if (myGen === genRef.current) setLoading(false);
+    }
+  }
+
   async function loadMore() {
     if (loadingMore || !hasMore || loading) return;
     setLoadingMore(true);
+    const myGen = genRef.current; // do NOT bump — this is a continuation, not a fresh load
     try {
       const result = await getAllReviewsPaginated(page, PAGE_SIZE);
+      if (myGen !== genRef.current) return; // a refresh happened mid-flight; discard stale page
       setRows((prev) => [...prev, ...result.reviews]);
       setHasMore(result.hasMore);
       setPage((p) => p + 1);
     } catch (err) {
+      if (myGen !== genRef.current) return;
       Alert.alert('Failed to load more', err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoadingMore(false);
@@ -161,6 +193,21 @@ function Moderation(): ReactElement {
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color={YELLOW} />
+          </View>
+        ) : loadError && rows.length === 0 ? (
+          <View style={styles.empty}>
+            <Ionicons name="cloud-offline-outline" size={36} color={DANGER} />
+            <ThemedText style={styles.emptyTitle}>Failed to load</ThemedText>
+            <ThemedText style={styles.emptyDesc}>{loadError}</ThemedText>
+            <Pressable
+              onPress={handleRetry}
+              style={({ pressed }) => [
+                styles.retryBtn,
+                pressed && styles.retryBtnPressed,
+              ]}>
+              <Ionicons name="refresh" size={14} color={YELLOW} />
+              <ThemedText style={styles.retryBtnText}>Try again</ThemedText>
+            </Pressable>
           </View>
         ) : rows.length === 0 ? (
           <View style={styles.empty}>
@@ -366,6 +413,27 @@ const styles = StyleSheet.create({
     color: DIM,
     textAlign: 'center',
     lineHeight: 19,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(245,196,81,0.4)',
+    backgroundColor: 'rgba(245,196,81,0.1)',
+  },
+  retryBtnPressed: {
+    backgroundColor: 'rgba(245,196,81,0.2)',
+  },
+  retryBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: YELLOW,
+    letterSpacing: 0.3,
   },
 
   // List
