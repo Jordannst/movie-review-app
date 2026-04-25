@@ -46,25 +46,41 @@ function List(): ReactElement {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async (mode: 'initial' | 'refresh') => {
-    if (mode === 'initial') setLoading(true);
-    else setRefreshing(true);
+  // Stale-while-revalidate: silent refetch on focus, full spinner only on first mount.
+  // Cancellation flag prevents stale responses from overwriting newer state after blur.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void getMovies()
+        .then((all) => {
+          if (!cancelled) setMovies(all);
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            Alert.alert('Failed to load', err instanceof Error ? err.message : 'Unknown error');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
+  // Pull-to-refresh: own loader independent of focus loader.
+  async function handleRefresh() {
+    setRefreshing(true);
     try {
       const all = await getMovies();
       setMovies(all);
     } catch (err) {
       Alert.alert('Failed to load', err instanceof Error ? err.message : 'Unknown error');
     } finally {
-      if (mode === 'initial') setLoading(false);
-      else setRefreshing(false);
+      setRefreshing(false);
     }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      void load('initial');
-    }, [load])
-  );
+  }
 
   const filtered = movies.filter(
     (m) => !query.trim() || m.title.toLowerCase().includes(query.trim().toLowerCase())
@@ -180,7 +196,7 @@ function List(): ReactElement {
             data={filtered}
             keyExtractor={(m) => m.id}
             refreshing={refreshing}
-            onRefresh={() => load('refresh')}
+            onRefresh={handleRefresh}
             contentContainerStyle={styles.listContent}
             renderItem={({ item, index }) => (
               <Animated.View entering={FadeIn.duration(220).delay(index * 30)}>
@@ -230,7 +246,8 @@ function MovieRow({ movie, onToggleFeatured, onEdit, onDelete }: MovieRowProps):
           {movie.title}
         </ThemedText>
         <ThemedText style={styles.rowMeta} numberOfLines={1}>
-          {movie.year} · {movie.genres.slice(0, 2).join(', ')}
+          {movie.year}
+          {movie.genres.length > 0 ? ` · ${movie.genres.slice(0, 2).join(', ')}` : ''}
         </ThemedText>
         <View style={styles.rowStats}>
           <StatPill icon="star" value={movie.averageRating.toFixed(1)} />
