@@ -6,15 +6,15 @@ import { useAdminGuard } from '@/hooks/use-admin-guard';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 /** Render `children` only when the current user is confirmed admin. */
-export function AdminGuard({ children }: { children: ReactNode }): ReactElement | null {
+export function AdminGuard({ children }: { children: ReactNode }): ReactElement {
   const { isAdmin, isLoading } = useAdminGuard();
   const colorScheme = useColorScheme();
-  const accent = Colors[colorScheme ?? 'dark'].accent;
+  const palette = Colors[colorScheme ?? 'dark'];
 
   if (isLoading || !isAdmin) {
     return (
-      <View style={styles.fallback}>
-        <ActivityIndicator color={accent} />
+      <View style={[styles.fallback, { backgroundColor: palette.background }]}>
+        <ActivityIndicator color={palette.accent} />
       </View>
     );
   }
@@ -27,6 +27,5 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0B0D12',
   },
 });
