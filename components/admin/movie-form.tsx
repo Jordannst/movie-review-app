@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { type ReactElement, type ReactNode, useMemo, useState } from 'react';
+import { type ReactElement, type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    KeyboardAvoidingView,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -58,7 +60,9 @@ export function MovieForm({
   const [title, setTitle] = useState(initial?.title ?? '');
   const [tagline, setTagline] = useState(initial?.tagline ?? '');
   const [year, setYear] = useState(String(initial?.year ?? new Date().getFullYear()));
-  const [runtime, setRuntime] = useState(String(initial?.runtimeMinutes ?? 0));
+  const [runtime, setRuntime] = useState(
+    initial?.runtimeMinutes ? String(initial.runtimeMinutes) : ''
+  );
   const [director, setDirector] = useState(initial?.director ?? '');
   const [synopsis, setSynopsis] = useState(initial?.synopsis ?? '');
   const [posterUrl, setPosterUrl] = useState(initial?.posterUrl ?? '');
@@ -68,6 +72,12 @@ export function MovieForm({
 
   const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [posterFailed, setPosterFailed] = useState(false);
+  const [backdropFailed, setBackdropFailed] = useState(false);
+
+  // Reset image-load error when URL changes (user pastes a new one)
+  useEffect(() => { setPosterFailed(false); }, [posterUrl]);
+  useEffect(() => { setBackdropFailed(false); }, [backdropUrl]);
 
   const errors = useMemo(
     () => validate({ id, title, year, runtime, posterUrl, backdropUrl }),
@@ -112,7 +122,10 @@ export function MovieForm({
   const showError = (e: string | null) => (touched ? e : null);
 
   return (
-    <View style={styles.flex}>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={insets.top + 60}>
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 120 }]}
@@ -213,14 +226,20 @@ export function MovieForm({
             />
           </Field>
 
-          {posterUrl && /^https?:\/\//.test(posterUrl) ? (
+          {posterUrl && /^https?:\/\//.test(posterUrl) && !posterFailed ? (
             <View style={styles.posterPreview}>
               <Image
                 source={{ uri: posterUrl }}
                 style={styles.posterImg}
                 contentFit="cover"
                 transition={180}
+                onError={() => setPosterFailed(true)}
               />
+            </View>
+          ) : posterUrl && posterFailed ? (
+            <View style={[styles.posterPreview, styles.previewFailed]}>
+              <Ionicons name="alert-circle-outline" size={20} color={DANGER} />
+              <ThemedText style={styles.previewFailedText}>Failed to load poster</ThemedText>
             </View>
           ) : null}
 
@@ -235,14 +254,20 @@ export function MovieForm({
             />
           </Field>
 
-          {backdropUrl && /^https?:\/\//.test(backdropUrl) ? (
+          {backdropUrl && /^https?:\/\//.test(backdropUrl) && !backdropFailed ? (
             <View style={styles.backdropPreview}>
               <Image
                 source={{ uri: backdropUrl }}
                 style={styles.backdropImg}
                 contentFit="cover"
                 transition={180}
+                onError={() => setBackdropFailed(true)}
               />
+            </View>
+          ) : backdropUrl && backdropFailed ? (
+            <View style={[styles.backdropPreview, styles.previewFailed]}>
+              <Ionicons name="alert-circle-outline" size={20} color={DANGER} />
+              <ThemedText style={styles.previewFailedText}>Failed to load backdrop</ThemedText>
             </View>
           ) : null}
         </Animated.View>
@@ -251,24 +276,25 @@ export function MovieForm({
         <Animated.View entering={FadeInDown.duration(280).delay(200).easing(Easing.out(Easing.cubic))}>
           <SectionEyebrow icon="pricetags-outline" label="Categorization" />
 
-          <ThemedText style={styles.fieldLabel}>
-            Genres <ThemedText style={styles.labelHint}>({genres.length} selected)</ThemedText>
-          </ThemedText>
-          <View style={styles.chipsRow}>
-            {ALL_GENRES.map((g) => {
-              const active = genres.includes(g);
-              return (
-                <Pressable
-                  key={g}
-                  onPress={() => toggleGenre(g)}
-                  style={[styles.chip, active && styles.chipActive]}>
-                  <ThemedText style={[styles.chipText, active && styles.chipTextActive]}>
-                    {g}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
-          </View>
+          <Field
+            label="Genres"
+            counter={genres.length > 0 ? `${genres.length} selected` : undefined}>
+            <View style={styles.chipsRow}>
+              {ALL_GENRES.map((g) => {
+                const active = genres.includes(g);
+                return (
+                  <Pressable
+                    key={g}
+                    onPress={() => toggleGenre(g)}
+                    style={[styles.chip, active && styles.chipActive]}>
+                    <ThemedText style={[styles.chipText, active && styles.chipTextActive]}>
+                      {g}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Field>
         </Animated.View>
 
         {/* SECTION 4 — SETTINGS */}
@@ -317,13 +343,13 @@ export function MovieForm({
             <PrimaryButton
               label={submitting ? 'Saving…' : submitLabel}
               onPress={handleSubmit}
-              disabled={!canSubmit}
+              disabled={submitting}
             />
           </View>
         </View>
         {submitting ? <ActivityIndicator color={YELLOW} style={styles.spinner} /> : null}
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -543,6 +569,15 @@ const styles = StyleSheet.create({
     backgroundColor: SURFACE_2,
   },
   posterImg: { width: 120, height: 180 },
+  previewFailed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  previewFailedText: { fontSize: 12, color: DANGER, fontWeight: '600' },
   backdropPreview: {
     marginTop: -6,
     marginBottom: 18,
