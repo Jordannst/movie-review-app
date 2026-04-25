@@ -45,6 +45,13 @@ export default function TabLayout(): ReactElement {
           tabBarIcon: ({ color }) => <IconSymbol size={22} name="person.fill" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: 'Admin',
+          tabBarIcon: ({ color }) => <IconSymbol size={22} name="shield.fill" color={color} />,
+        }}
+      />
     </Tabs>
   );
 }
