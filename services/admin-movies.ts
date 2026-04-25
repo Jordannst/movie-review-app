@@ -17,9 +17,17 @@ export type MovieInput = {
   isFeatured?: boolean;    // defaults to false
 };
 
-/** Upsert payload keys must match DB columns (snake_case). */
-function toDbPayload(input: MovieInput) {
-  return {
+/**
+ * Upsert payload keys must match DB columns (snake_case).
+ *
+ * IMPORTANT: `average_rating` and `review_count` are derived/aggregate fields not
+ * surfaced by `MovieForm`. Always omit them from the payload when the caller did
+ * not explicitly provide a value, so:
+ *   - INSERT relies on the DB defaults (0).
+ *   - UPDATE preserves the existing values instead of resetting them to 0.
+ */
+function toDbPayload(input: MovieInput): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
     id:              input.id.trim(),
     title:           input.title.trim(),
     tagline:         input.tagline.trim(),
@@ -30,10 +38,15 @@ function toDbPayload(input: MovieInput) {
     synopsis:        input.synopsis.trim(),
     poster_url:      input.posterUrl.trim(),
     backdrop_url:    input.backdropUrl.trim(),
-    average_rating:  input.averageRating ?? 0,
-    review_count:    input.reviewCount ?? 0,
     is_featured:     input.isFeatured ?? false,
   };
+  if (input.averageRating !== undefined) {
+    payload.average_rating = input.averageRating;
+  }
+  if (input.reviewCount !== undefined) {
+    payload.review_count = input.reviewCount;
+  }
+  return payload;
 }
 
 export async function createMovie(input: MovieInput): Promise<Movie> {
