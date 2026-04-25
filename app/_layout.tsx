@@ -106,6 +106,30 @@ function RootNavigator({ bgColor }: { bgColor: string }): ReactElement {
           animation: 'slide_from_bottom',
         }}
       />
+      <Stack.Screen
+        name="admin/movies/index"
+        options={{ headerShown: false, animation: 'slide_from_right' }}
+      />
+      <Stack.Screen
+        name="admin/movies/new"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
+        name="admin/movies/[id]"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
+        name="admin/reviews"
+        options={{ headerShown: false, animation: 'slide_from_right' }}
+      />
     </Stack>
   );
 }
