@@ -43,9 +43,15 @@ function Hub(): ReactElement {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      void loadStats().then((s) => {
-        if (!cancelled) setStats(s);
-      });
+      void loadStats()
+        .then((s) => {
+          if (!cancelled) setStats(s);
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            console.warn('[admin-hub] stats fetch failed:', err);
+          }
+        });
       return () => {
         cancelled = true;
       };

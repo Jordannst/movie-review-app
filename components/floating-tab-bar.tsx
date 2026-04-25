@@ -17,10 +17,13 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+type TabIconName = 'house.fill' | 'person.fill' | 'shield.fill';
+
 /** Maps route name → SF Symbol icon name */
-const ROUTE_ICONS: Record<string, 'house.fill' | 'person.fill'> = {
+const ROUTE_ICONS: Record<string, TabIconName> = {
   index: 'house.fill',
   profile: 'person.fill',
+  admin: 'shield.fill',
 };
 
 // Tab dimensions
@@ -93,7 +96,7 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
 
 // ──────────────────────── Per-tab item ────────────────────────
 type TabBarItemProps = {
-  iconName: 'house.fill' | 'person.fill';
+  iconName: TabIconName;
   label: string;
   isFocused: boolean;
   accent: string;
