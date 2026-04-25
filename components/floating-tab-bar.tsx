@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type TabIconName = 'house.fill' | 'person.fill' | 'shield.fill';
@@ -43,6 +44,12 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const accent = Colors[colorScheme ?? 'dark'].accent;
+  const { isAdmin } = useAuth();
+
+  // Hide admin tab from non-admin users (server-side RLS still enforces access)
+  const visibleRoutes = state.routes.filter((r) =>
+    r.name === 'admin' ? isAdmin : true
+  );
 
   return (
     <View
@@ -52,9 +59,12 @@ export function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarP
         intensity={Platform.OS === 'android' ? 0 : 70}
         tint="dark"
         style={styles.pill}>
-        {state.routes.map((route, index) => {
+        {visibleRoutes.map((route) => {
           const { options } = descriptors[route.key];
-          const isFocused = state.index === index;
+          // Use original route index (not visibleRoutes index) so the focused
+          // highlight remains accurate when filter hides earlier routes.
+          const originalIndex = state.routes.findIndex((r) => r.key === route.key);
+          const isFocused = state.index === originalIndex;
           const iconName = ROUTE_ICONS[route.name] ?? 'house.fill';
           const label = String(options.title ?? route.name);
 

@@ -87,7 +87,7 @@ function Hub(): ReactElement {
             style={styles.statsRow}>
             <StatCard icon="film-outline" label="Movies" value={stats?.movieCount} />
             <StatCard icon="chatbubbles-outline" label="Reviews" value={stats?.reviewCount} />
-            <StatCard icon="star" label="Featured" value={stats?.featuredCount} accent />
+            <StatCard icon="star-outline" label="Featured" value={stats?.featuredCount} accent />
           </Animated.View>
 
           {/* QUICK ACTIONS */}
