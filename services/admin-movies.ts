@@ -51,14 +51,18 @@ export async function createMovie(input: MovieInput): Promise<Movie> {
 }
 
 export async function updateMovie(id: string, input: MovieInput): Promise<Movie> {
+  const { id: _, ...payloadWithoutId } = toDbPayload(input);
   const { data, error } = await supabase
     .from('movies')
-    .update(toDbPayload(input))
+    .update(payloadWithoutId)
     .eq('id', id)
     .select()
     .single();
 
-  if (error) throw new Error(`updateMovie: ${error.message}`);
+  if (error) {
+    if (error.code === 'PGRST116') throw new Error('Movie no longer exists.');
+    throw new Error(`updateMovie: ${error.message}`);
+  }
   return mapRow(data);
 }
 
@@ -88,8 +92,8 @@ function mapRow(row: Record<string, unknown>): Movie {
     synopsis:       row.synopsis as string,
     posterUrl:      row.poster_url as string,
     backdropUrl:    row.backdrop_url as string,
-    averageRating:  Number(row.average_rating ?? 0),
-    reviewCount:    Number(row.review_count ?? 0),
-    isFeatured:     Boolean(row.is_featured),
+    averageRating:  Number(row.average_rating),
+    reviewCount:    row.review_count as number,
+    isFeatured:     row.is_featured as boolean,
   };
 }
