@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { type ReactElement, useCallback, useRef, useState } from 'react';
+import { type ReactElement, useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     FlatList,
     Pressable,
     StyleSheet,
+    TextInput,
     View,
 } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -52,45 +53,68 @@ function Moderation(): ReactElement {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Generation counter: any "fresh page-0" fetch (focus / refresh / retry) bumps it.
-  // In-flight calls compare their captured generation against current to detect
+  // Filter input (raw, what user types) + debounced applied filter.
+  const [filterInput, setFilterInput] = useState('');
+  const [appliedFilter, setAppliedFilter] = useState('');
+
+  // Generation counter: any "fresh page-0" fetch (focus / refresh / retry / filter change)
+  // bumps it. In-flight calls compare their captured generation against current to detect
   // staleness — prevents loadMore from appending pages that belong to a previous
   // dataset after a concurrent refresh.
   const genRef = useRef(0);
 
-  // Initial load on focus
+  // Debounce the filter input so we don't fetch on every keystroke.
+  useEffect(() => {
+    if (filterInput.trim() === appliedFilter) return;
+    const t = setTimeout(() => setAppliedFilter(filterInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [filterInput, appliedFilter]);
+
+  // Unified page-0 loader. Used by focus, filter change, refresh, and retry.
+  // Stale-while-revalidate: keeps existing rows visible during refetch — only
+  // toggles the full-screen spinner if no data has loaded yet.
+  const loadFirstPage = useCallback(
+    async (filter: string, opts: { showSpinner?: boolean } = {}): Promise<void> => {
+      const myGen = ++genRef.current;
+      if (opts.showSpinner) setLoading(true);
+      try {
+        const result = await getAllReviewsPaginated(0, PAGE_SIZE, filter || undefined);
+        if (myGen !== genRef.current) return;
+        setRows(result.reviews);
+        setTotalCount(result.totalCount);
+        setHasMore(result.hasMore);
+        setPage(1);
+        setLoadError(null);
+      } catch (err) {
+        if (myGen !== genRef.current) return;
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        if (opts.showSpinner) setLoadError(msg);
+        else Alert.alert('Failed to load', msg);
+      } finally {
+        if (myGen === genRef.current && opts.showSpinner) setLoading(false);
+      }
+    },
+    []
+  );
+
+  // Reload page 0 on focus AND whenever the applied filter changes.
   useFocusEffect(
     useCallback(() => {
-      const myGen = ++genRef.current;
-      void getAllReviewsPaginated(0, PAGE_SIZE)
-        .then((result) => {
-          if (myGen !== genRef.current) return;
-          setRows(result.reviews);
-          setTotalCount(result.totalCount);
-          setHasMore(result.hasMore);
-          setPage(1);
-          setLoadError(null);
-        })
-        .catch((err) => {
-          if (myGen !== genRef.current) return;
-          setLoadError(err instanceof Error ? err.message : 'Unknown error');
-        })
-        .finally(() => {
-          if (myGen !== genRef.current) return;
-          setLoading(false);
-        });
+      // Show spinner only when there's no data yet (initial load); otherwise stale-while-revalidate.
+      void loadFirstPage(appliedFilter, { showSpinner: rows.length === 0 });
       return () => {
         // On blur, bump generation so any in-flight call becomes stale and won't setState.
         genRef.current++;
       };
-    }, [])
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [appliedFilter, loadFirstPage])
   );
 
   async function handleRefresh() {
     setRefreshing(true);
     const myGen = ++genRef.current;
     try {
-      const result = await getAllReviewsPaginated(0, PAGE_SIZE);
+      const result = await getAllReviewsPaginated(0, PAGE_SIZE, appliedFilter || undefined);
       if (myGen !== genRef.current) return;
       setRows(result.reviews);
       setTotalCount(result.totalCount);
@@ -106,22 +130,7 @@ function Moderation(): ReactElement {
   }
 
   async function handleRetry() {
-    setLoading(true);
-    setLoadError(null);
-    const myGen = ++genRef.current;
-    try {
-      const result = await getAllReviewsPaginated(0, PAGE_SIZE);
-      if (myGen !== genRef.current) return;
-      setRows(result.reviews);
-      setTotalCount(result.totalCount);
-      setHasMore(result.hasMore);
-      setPage(1);
-    } catch (err) {
-      if (myGen !== genRef.current) return;
-      setLoadError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      if (myGen === genRef.current) setLoading(false);
-    }
+    await loadFirstPage(appliedFilter, { showSpinner: true });
   }
 
   async function loadMore() {
@@ -129,8 +138,8 @@ function Moderation(): ReactElement {
     setLoadingMore(true);
     const myGen = genRef.current; // do NOT bump — this is a continuation, not a fresh load
     try {
-      const result = await getAllReviewsPaginated(page, PAGE_SIZE);
-      if (myGen !== genRef.current) return; // a refresh happened mid-flight; discard stale page
+      const result = await getAllReviewsPaginated(page, PAGE_SIZE, appliedFilter || undefined);
+      if (myGen !== genRef.current) return; // a refresh / filter change happened mid-flight; discard
       setRows((prev) => [...prev, ...result.reviews]);
       setHasMore(result.hasMore);
       setPage((p) => p + 1);
@@ -182,11 +191,33 @@ function Moderation(): ReactElement {
               {loading
                 ? 'Loading…'
                 : totalCount !== null
-                  ? `${totalCount} review${totalCount === 1 ? '' : 's'}`
+                  ? `${totalCount} review${totalCount === 1 ? '' : 's'}${appliedFilter ? ' • filtered' : ''}`
                   : `${rows.length} loaded`}
             </ThemedText>
           </View>
           <View style={styles.headerBtn} />
+        </View>
+
+        {/* Filter input */}
+        <View style={styles.filterWrap}>
+          <View style={styles.filterInputWrap}>
+            <Ionicons name="search" size={16} color={DIM} />
+            <TextInput
+              value={filterInput}
+              onChangeText={setFilterInput}
+              placeholder="Filter by movie title…"
+              placeholderTextColor={DIM}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.filterInput}
+              returnKeyType="search"
+            />
+            {filterInput.length > 0 ? (
+              <Pressable onPress={() => setFilterInput('')} hitSlop={10}>
+                <Ionicons name="close-circle" size={16} color={DIM} />
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         {/* Body */}
@@ -211,11 +242,30 @@ function Moderation(): ReactElement {
           </View>
         ) : rows.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="chatbubbles-outline" size={36} color={DIM} />
-            <ThemedText style={styles.emptyTitle}>No reviews yet</ThemedText>
-            <ThemedText style={styles.emptyDesc}>
-              Reviews from users will appear here for moderation.
+            <Ionicons
+              name={appliedFilter ? 'search-outline' : 'chatbubbles-outline'}
+              size={36}
+              color={DIM}
+            />
+            <ThemedText style={styles.emptyTitle}>
+              {appliedFilter ? 'No matching reviews' : 'No reviews yet'}
             </ThemedText>
+            <ThemedText style={styles.emptyDesc}>
+              {appliedFilter
+                ? `Nothing matches "${appliedFilter}". Try a different movie title.`
+                : 'Reviews from users will appear here for moderation.'}
+            </ThemedText>
+            {appliedFilter ? (
+              <Pressable
+                onPress={() => setFilterInput('')}
+                style={({ pressed }) => [
+                  styles.retryBtn,
+                  pressed && styles.retryBtnPressed,
+                ]}>
+                <Ionicons name="close" size={14} color={YELLOW} />
+                <ThemedText style={styles.retryBtnText}>Clear filter</ThemedText>
+              </Pressable>
+            ) : null}
           </View>
         ) : (
           <FlatList
@@ -377,8 +427,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+
+  // Filter
+  filterWrap: {
+    paddingHorizontal: 16,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
+  },
+  filterInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: SURFACE,
+  },
+  filterInput: {
+    flex: 1,
+    fontSize: 13,
+    color: TEXT_PRIMARY,
+    padding: 0,
   },
   headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flex: 1, alignItems: 'center' },
