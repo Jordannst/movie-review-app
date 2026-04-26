@@ -20,25 +20,40 @@ export async function getAllReviewsPaginated(
   const from = page * pageSize;
   const to = from + pageSize - 1;
 
+  // Note: `reviews.user_id` references `auth.users`, not `public.profiles`, so PostgREST
+  // cannot auto-resolve an embedded `profiles(name)`. We embed only the `movies` join
+  // (which has a direct FK) and look up profiles in a follow-up `IN` query.
   const { data, error, count } = await supabase
     .from('reviews')
-    .select(
-      `
-      *,
-      movies!inner(title),
-      profiles(name)
-    `,
-      { count: 'exact' }
-    )
+    .select(`*, movies!inner(title)`, { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);
 
   if (error) throw new Error(`getAllReviewsPaginated: ${error.message}`);
 
-  const reviews = (data ?? []).map((row) => {
+  const rows = data ?? [];
+
+  // Collect distinct user_ids and fetch their current display names in one round-trip.
+  const userIds = Array.from(
+    new Set(rows.map((r) => r.user_id).filter((v): v is string => typeof v === 'string'))
+  );
+  const profilesById = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: profileRows, error: profileErr } = await supabase
+      .from('profiles')
+      .select('id, name')
+      .in('id', userIds);
+    if (profileErr) throw new Error(`getAllReviewsPaginated: ${profileErr.message}`);
+    for (const p of profileRows ?? []) {
+      if (p.id && p.name) profilesById.set(p.id as string, p.name as string);
+    }
+  }
+
+  const reviews: AdminReviewRow[] = rows.map((row) => {
     const base = toReview(row);
     const movieTitle = (row.movies as { title?: string } | null)?.title ?? 'Unknown movie';
-    const authorName = (row.profiles as { name?: string } | null)?.name ?? base.authorName;
+    const liveName = typeof row.user_id === 'string' ? profilesById.get(row.user_id) : undefined;
+    const authorName = liveName ?? base.authorName;
     return { ...base, movieTitle, authorName };
   });
 
