@@ -173,7 +173,7 @@ erDiagram
     profiles ||--o{ reviews : writes
     profiles ||--o{ watchlist : has
     movies ||--o{ reviews : receives
-    movies ||--o{ watchlist : in
+    movies ||--o{ watchlist : contains
 
     auth_users {
         uuid id PK
@@ -181,11 +181,11 @@ erDiagram
     }
 
     profiles {
-        uuid id PK_FK
+        uuid id PK
         text name
-        text username UK
+        text username
         text bio
-        text role "user|admin"
+        text role "user or admin"
         text avatar_url
         timestamptz created_at
     }
@@ -196,7 +196,7 @@ erDiagram
         text tagline
         int year
         int runtime_minutes
-        text_array genres
+        text genres "text array"
         text director
         text synopsis
         text poster_url
@@ -211,10 +211,10 @@ erDiagram
         text movie_id FK
         uuid user_id FK
         text author_name
-        int rating "1-5"
+        int rating "1 to 5"
         text title
         text body
-        text_array tags
+        text tags "text array"
         boolean contains_spoilers
         timestamptz created_at
         timestamptz updated_at
