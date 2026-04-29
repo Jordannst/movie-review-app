@@ -15,11 +15,13 @@ export default function RootLayout(): ReactElement {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+      <Stack screenOptions={{ animation: 'none' }}>
+        <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="movies/[id]" options={{ title: 'Movie Detail' }} />
         <Stack.Screen name="reviews/new" options={{ title: 'Review Form' }} />
       </Stack>
+
       <StatusBar style="auto" />
     </ThemeProvider>
   );

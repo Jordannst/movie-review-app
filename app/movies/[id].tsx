@@ -1,6 +1,5 @@
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { type ReactElement } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { Easing, FadeInDown } from 'react-native-reanimated';
 
@@ -19,122 +18,130 @@ const ITEM_STAGGER = 45;
 function getEnterAnimation(delay = 0) {
   return FadeInDown.duration(SECTION_ENTER_DURATION)
     .delay(delay)
-    .easing(Easing.out(Easing.quad))
-    .withInitialValues({
-      opacity: 0,
-      transform: [{ translateY: 10 }],
-    });
+    .easing(Easing.out(Easing.quad));
 }
 
-export default function MovieDetailScreen(): ReactElement {
+export default function MovieDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string | string[] }>();
+
+  const { id } = useLocalSearchParams();
   const movieId = Array.isArray(id) ? id[0] : id;
-  const movie = movieId ? getMovieById(movieId) : undefined;
+
+  const movie = movieId ? getMovieById(movieId) : null;
+
   const background = useThemeColor({}, 'background');
   const surface = useThemeColor({}, 'surface');
   const border = useThemeColor({}, 'border');
   const textMuted = useThemeColor({}, 'textMuted');
-  const accent = useThemeColor({}, 'accent');
 
-  function handleBackToHome(): void {
-    router.replace('/');
+  const accent = '#e8b84b';
+
+  function handleBack() {
+    router.back(); // 🔥 FIX lebih benar daripada push '/'
   }
 
+  function handleWriteReview() {
+    if (!movie) return;
+
+    router.push({
+      pathname: '/reviews/new',
+      params: { movieId: movie.id },
+    });
+  }
+
+  // 🔥 SAFE GUARD
   if (!movie) {
     return (
-      <ThemedView style={styles.missingScreen}>
-        <View style={[styles.missingCard, { backgroundColor: surface, borderColor: border }]}>
-          <ThemedText type="title">Movie not found</ThemedText>
-          <ThemedText style={[styles.missingCopy, { color: textMuted }]}>
-            The selected movie doesn&apos;t exist in the local demo data yet.
-          </ThemedText>
-          <PrimaryButton label="Back to Home" onPress={handleBackToHome} />
-        </View>
+      <ThemedView style={styles.center}>
+        <ThemedText type="title">Movie not found</ThemedText>
+        <PrimaryButton label="Go Back" onPress={handleBack} />
       </ThemedView>
     );
   }
 
-  const selectedMovie = movie;
-  const reviews = getReviewsForMovie(selectedMovie.id);
-  const reviewCountLabel = `${selectedMovie.reviewCount} reviews`;
-
-  function handleWriteReview(): void {
-    router.push({
-      pathname: '/reviews/new',
-      params: { movieId: selectedMovie.id },
-    });
-  }
+  const reviews = getReviewsForMovie(movie.id) || [];
 
   return (
-    <ThemedView style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        style={{ backgroundColor: background }}>
+    <ThemedView style={{ flex: 1 }}>
+      <ScrollView style={{ backgroundColor: background }}>
+        
+        {/* BACKDROP */}
         <Animated.View entering={getEnterAnimation(0)}>
-          <Image source={{ uri: selectedMovie.backdropUrl }} style={styles.backdrop} contentFit="cover" />
+          <Image
+            source={{ uri: movie.backdropUrl || 'https://via.placeholder.com/500' }}
+            style={styles.backdrop}
+          />
         </Animated.View>
 
-        <Animated.View entering={getEnterAnimation(70)} style={styles.posterRow}>
-          <Image source={{ uri: selectedMovie.posterUrl }} style={styles.poster} contentFit="cover" />
+        {/* HEADER */}
+        <Animated.View entering={getEnterAnimation(70)} style={styles.header}>
+          <Image
+            source={{ uri: movie.posterUrl || 'https://via.placeholder.com/300' }}
+            style={styles.poster}
+          />
 
-          <View style={styles.headerContent}>
-            <ThemedText style={[styles.eyebrow, { color: accent }]}>Movie Detail</ThemedText>
-            <ThemedText type="title" style={styles.title}>
-              {selectedMovie.title}
-            </ThemedText>
-            <ThemedText style={[styles.tagline, { color: textMuted }]}>{selectedMovie.tagline}</ThemedText>
-            <RatingStars rating={selectedMovie.averageRating} />
+          <View style={{ flex: 1 }}>
+            <ThemedText style={{ color: accent }}>Movie Detail</ThemedText>
+
+            <ThemedText type="title">{movie.title}</ThemedText>
+
+            {movie.tagline && (
+              <ThemedText style={{ color: textMuted }}>
+                {movie.tagline}
+              </ThemedText>
+            )}
+
+            <RatingStars rating={movie.averageRating || 0} />
           </View>
         </Animated.View>
 
-        <Animated.View entering={getEnterAnimation(110)} style={styles.metaRow}>
-          <View style={[styles.metaChip, { backgroundColor: surface, borderColor: border }]}>
-            <ThemedText style={styles.metaText}>{selectedMovie.year}</ThemedText>
-          </View>
-          <View style={[styles.metaChip, { backgroundColor: surface, borderColor: border }]}>
-            <ThemedText style={styles.metaText}>{selectedMovie.runtimeMinutes} min</ThemedText>
-          </View>
-          <View style={[styles.metaChip, { backgroundColor: surface, borderColor: border }]}>
-            <ThemedText style={styles.metaText}>{selectedMovie.director}</ThemedText>
-          </View>
-        </Animated.View>
+        {/* META */}
+        <View style={styles.metaRow}>
+          <ThemedText>{movie.year}</ThemedText>
+          <ThemedText>{movie.runtimeMinutes} min</ThemedText>
+          <ThemedText>{movie.director}</ThemedText>
+        </View>
 
-        <Animated.View entering={getEnterAnimation(150)} style={styles.section}>
+        {/* SYNOPSIS */}
+        <View style={styles.section}>
           <ThemedText type="subtitle">Synopsis</ThemedText>
-          <ThemedText style={[styles.bodyCopy, { color: textMuted }]}>{selectedMovie.synopsis}</ThemedText>
-        </Animated.View>
+          <ThemedText style={{ color: textMuted }}>
+            {movie.synopsis}
+          </ThemedText>
+        </View>
 
-        <Animated.View entering={getEnterAnimation(190)} style={styles.section}>
+        {/* GENRES */}
+        <View style={styles.section}>
           <ThemedText type="subtitle">Genres</ThemedText>
           <View style={styles.genreRow}>
-            {selectedMovie.genres.map((genre) => (
-              <View key={genre} style={[styles.genreChip, { backgroundColor: surface, borderColor: border }]}>
-                <ThemedText style={styles.genreText}>{genre}</ThemedText>
+            {movie.genres?.map((g) => (
+              <View key={g} style={styles.genreChip}>
+                <ThemedText>{g}</ThemedText>
               </View>
             ))}
           </View>
-        </Animated.View>
+        </View>
 
-        <Animated.View entering={getEnterAnimation(230)} style={styles.sectionAction}>
+        {/* BUTTON */}
+        <View style={styles.section}>
           <PrimaryButton label="Write Review" onPress={handleWriteReview} />
-        </Animated.View>
+        </View>
 
-        <Animated.View entering={getEnterAnimation(270)} style={styles.sectionHeader}>
-          <View>
-            <ThemedText style={styles.sectionLabel}>Community</ThemedText>
-            <ThemedText type="subtitle">Recent reviews preview</ThemedText>
-          </View>
-          <ThemedText style={[styles.reviewMeta, { color: textMuted }]}>{reviewCountLabel}</ThemedText>
-        </Animated.View>
+        {/* REVIEWS */}
+        <View style={styles.section}>
+          <ThemedText type="subtitle">
+            Reviews ({reviews.length})
+          </ThemedText>
 
-        <View style={styles.reviewList}>
-          {reviews.map((review, index) => (
-            <Animated.View key={review.id} entering={getEnterAnimation(320 + index * ITEM_STAGGER)}>
-              <ReviewCard review={review} />
-            </Animated.View>
-          ))}
+          {reviews.length > 0 ? (
+            reviews.map((r) => (
+              <ReviewCard key={r.id} review={r} />
+            ))
+          ) : (
+            <ThemedText style={{ color: textMuted }}>
+              No reviews yet
+            </ThemedText>
+          )}
         </View>
       </ScrollView>
     </ThemedView>
@@ -142,129 +149,49 @@ export default function MovieDetailScreen(): ReactElement {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  content: {
-    gap: 20,
-    paddingBottom: 32,
-  },
   backdrop: {
     width: '100%',
-    height: 260,
+    height: 250,
   },
-  posterRow: {
+
+  header: {
     flexDirection: 'row',
-    gap: 18,
-    marginTop: -58,
-    paddingHorizontal: 20,
+    padding: 16,
+    gap: 12,
+    marginTop: -40,
   },
+
   poster: {
-    width: 124,
-    height: 184,
-    borderRadius: 20,
-    backgroundColor: '#1C2230',
+    width: 100,
+    height: 150,
+    borderRadius: 10,
   },
-  headerContent: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    gap: 8,
-    paddingTop: 60,
-  },
-  eyebrow: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  title: {
-    lineHeight: 36,
-  },
-  tagline: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
+
   metaRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    paddingHorizontal: 20,
+    justifyContent: 'space-around',
+    marginVertical: 10,
   },
-  metaChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  metaText: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '700',
-  },
+
   section: {
-    gap: 10,
-    paddingHorizontal: 20,
+    padding: 16,
   },
-  sectionAction: {
-    paddingHorizontal: 20,
-  },
-  bodyCopy: {
-    fontSize: 14,
-    lineHeight: 22,
-  },
+
   genreRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
+
   genreChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: '#222',
+    padding: 6,
+    borderRadius: 10,
   },
-  genreText: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingHorizontal: 20,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '700',
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-  },
-  reviewMeta: {
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  reviewList: {
-    gap: 14,
-    paddingHorizontal: 20,
-  },
-  missingScreen: {
+
+  center: {
     flex: 1,
     justifyContent: 'center',
-    padding: 20,
-  },
-  missingCard: {
-    gap: 16,
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 20,
-  },
-  missingCopy: {
-    fontSize: 15,
-    lineHeight: 22,
+    alignItems: 'center',
   },
 });
