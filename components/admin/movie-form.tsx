@@ -16,9 +16,11 @@ import {
 import Animated, { Easing, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AwardsEditor } from '@/components/admin/awards-editor';
 import { PrimaryButton } from '@/components/primary-button';
 import { ThemedText } from '@/components/themed-text';
 import { type MovieInput } from '@/services/admin-movies';
+import { type AwardInput } from '@/services/awards';
 
 // Design tokens — match app/profile/edit.tsx aesthetic
 const BG = '#0B0D12';
@@ -41,6 +43,7 @@ const SYNOPSIS_MAX = 600;
 
 type MovieFormProps = {
   initial?: Partial<MovieInput>;
+  initialAwards?: AwardInput[];
   submitLabel: string;
   lockId?: boolean; // true when editing — prevent changing slug
   onSubmit: (input: MovieInput) => Promise<void>;
@@ -49,6 +52,7 @@ type MovieFormProps = {
 
 export function MovieForm({
   initial,
+  initialAwards,
   submitLabel,
   lockId,
   onSubmit,
@@ -69,6 +73,7 @@ export function MovieForm({
   const [backdropUrl, setBackdropUrl] = useState(initial?.backdropUrl ?? '');
   const [genres, setGenres] = useState<string[]>(initial?.genres ?? []);
   const [isFeatured, setIsFeatured] = useState<boolean>(initial?.isFeatured ?? false);
+  const [awards, setAwards] = useState<AwardInput[]>(initialAwards ?? []);
 
   const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
@@ -110,6 +115,7 @@ export function MovieForm({
         backdropUrl: backdropUrl.trim(),
         genres,
         isFeatured,
+        awards,
       });
     } catch (err) {
       Alert.alert('Save failed', err instanceof Error ? err.message : 'Unknown error');
@@ -297,8 +303,14 @@ export function MovieForm({
           </Field>
         </Animated.View>
 
+        {/* SECTION — AWARDS */}
+        <Animated.View entering={FadeInDown.duration(280).delay(240).easing(Easing.out(Easing.cubic))}>
+          <SectionEyebrow icon="trophy-outline" label="Awards" />
+          <AwardsEditor value={awards} onChange={setAwards} />
+        </Animated.View>
+
         {/* SECTION 4 — SETTINGS */}
-        <Animated.View entering={FadeInDown.duration(280).delay(280).easing(Easing.out(Easing.cubic))}>
+        <Animated.View entering={FadeInDown.duration(280).delay(320).easing(Easing.out(Easing.cubic))}>
           <SectionEyebrow icon="settings-outline" label="Settings" />
 
           <Pressable
