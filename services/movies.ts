@@ -31,11 +31,11 @@ export async function getMovies(): Promise<Movie[]> {
   return (data ?? []).map(toMovie);
 }
 
-/** Ambil satu film berdasarkan id (slug) */
+/** Ambil satu film berdasarkan id (slug), dengan award list ter-embed */
 export async function getMovieById(id: string): Promise<Movie | null> {
   const { data, error } = await supabase
     .from('movies')
-    .select('*')
+    .select('*, movie_awards(*)')
     .eq('id', id)
     .single();
 
@@ -43,7 +43,33 @@ export async function getMovieById(id: string): Promise<Movie | null> {
     if (error.code === 'PGRST116') return null; // not found
     throw new Error(`getMovieById: ${error.message}`);
   }
-  return data ? toMovie(data) : null;
+  if (!data) return null;
+
+  const movie = toMovie(data);
+  const rawAwards = (data as Record<string, unknown>).movie_awards as
+    | Record<string, unknown>[]
+    | undefined;
+
+  if (rawAwards && rawAwards.length > 0) {
+    movie.awards = rawAwards
+      .map((row) => ({
+        id:           row.id as number,
+        movieId:      row.movie_id as string,
+        awardName:    row.award_name as string,
+        organization: row.organization as string,
+        year:         row.year as number,
+        category:     (row.category as string | null) ?? null,
+        isWinner:     row.is_winner as boolean,
+      }))
+      // Sort: newest year first, winners before nominations within a year, then organization asc
+      .sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        if (a.isWinner !== b.isWinner) return a.isWinner ? -1 : 1;
+        return a.organization.localeCompare(b.organization);
+      });
+    movie.hasWinningAward = movie.awards.some((a) => a.isWinner);
+  }
+  return movie;
 }
 
 /** Ambil film yang is_featured = true; fallback ke film dengan review_count tertinggi */
@@ -105,11 +131,9 @@ export type MovieSortKey = 'rating' | 'year' | 'title';
  * Dynamic discovery categories (distinct from static genres).
  * - `trending`  → sorted by review_count desc (most-discussed)
  * - `new`       → sorted by year desc (newest first)
- * - `awarded`   → filtered to average_rating >= AWARDED_THRESHOLD
+ * - `awarded`   → only films with at least one winning row in `movie_awards`
  */
 export type MovieCategory = 'trending' | 'new' | 'awarded';
-
-export const AWARDED_THRESHOLD = 4.5;
 
 export function getCategoryLabel(category: MovieCategory): string {
   switch (category) {
@@ -139,16 +163,19 @@ export async function getMoviesFiltered(
 ): Promise<MoviesPage> {
   const { genre, sort = 'rating', category, page = 0, pageSize = 12 } = params;
 
-  let query = supabase.from('movies').select('*', { count: 'exact' });
+  // Awarded uses an inner-join embed so PostgREST translates it to an EXISTS
+  // filter against `movie_awards`. All other categories use the plain select.
+  let query =
+    category === 'awarded'
+      ? supabase
+          .from('movies')
+          .select('*, movie_awards!inner(id)', { count: 'exact' })
+          .eq('movie_awards.is_winner', true)
+      : supabase.from('movies').select('*', { count: 'exact' });
 
   // Genre filter — Supabase array contains operator
   if (genre && genre !== 'All') {
     query = query.contains('genres', [genre]);
-  }
-
-  // Category filter (awarded narrows by rating; trending/new only override sort)
-  if (category === 'awarded') {
-    query = query.gte('average_rating', AWARDED_THRESHOLD);
   }
 
   // Sort: category preset overrides user sort for trending/new
@@ -177,6 +204,13 @@ export async function getMoviesFiltered(
   if (error) throw new Error(`getMoviesFiltered: ${error.message}`);
 
   const movies = (data ?? []).map(toMovie);
+
+  // Movies returned by the awarded branch are guaranteed to have at least
+  // one winning award row (the inner-join filtered them).
+  if (category === 'awarded') {
+    for (const m of movies) m.hasWinningAward = true;
+  }
+
   const totalCount = count ?? 0;
 
   return {
