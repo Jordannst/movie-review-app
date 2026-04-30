@@ -167,6 +167,10 @@ graph TB
 
 ## 🗄️ Database Schema
 
+MovieReview memakai **PostgreSQL via Supabase**. Total: **5 tabel publik** + 1 tabel managed (`auth.users`), **3 helper functions**, **2 triggers** otomatis, **14 RLS policies**, dan **4 indexes** tambahan. Semua schema versioned via **7 file migrasi SQL** sequential.
+
+### Diagram ER
+
 ```mermaid
 erDiagram
     auth_users ||--|| profiles : "1:1"
@@ -174,19 +178,23 @@ erDiagram
     profiles ||--o{ watchlist : has
     movies ||--o{ reviews : receives
     movies ||--o{ watchlist : contains
+    movies ||--o{ movie_awards : "has 0..N"
 
     auth_users {
         uuid id PK
         text email
+        timestamptz created_at
     }
 
     profiles {
-        uuid id PK
+        uuid id PK_FK
         text name
-        text username
+        text username UK
+        text initials
         text bio
-        text role "user or admin"
-        text avatar_url
+        text badge_label
+        text role "user|admin"
+        text_array favorite_genres
         timestamptz created_at
     }
 
@@ -196,14 +204,15 @@ erDiagram
         text tagline
         int year
         int runtime_minutes
-        text genres "text array"
+        text_array genres
         text director
         text synopsis
         text poster_url
         text backdrop_url
-        decimal average_rating
-        int review_count
+        numeric average_rating "auto-calc"
+        int review_count "auto-calc"
         boolean is_featured
+        timestamptz created_at
     }
 
     reviews {
@@ -211,13 +220,13 @@ erDiagram
         text movie_id FK
         uuid user_id FK
         text author_name
-        int rating "1 to 5"
         text title
         text body
-        text tags "text array"
+        numeric rating "1-5 CHECK"
+        text_array tags
         boolean contains_spoilers
         timestamptz created_at
-        timestamptz updated_at
+        timestamptz updated_at "trigger"
     }
 
     watchlist {
@@ -226,11 +235,333 @@ erDiagram
         text movie_id FK
         timestamptz added_at
     }
+
+    movie_awards {
+        bigint id PK
+        text movie_id FK
+        text award_name
+        text organization
+        int year "1900-2100 CHECK"
+        text category "nullable"
+        boolean is_winner
+        timestamptz created_at
+    }
 ```
 
-**Catatan penting:**
-- `reviews.user_id` mereferensi `auth.users(id)`, **bukan** `profiles.id` — ini menyebabkan PostgREST tidak bisa auto-resolve embedded join `profiles(name)`. Solusi: manual `IN`-query lookup di `services/admin-reviews.ts`.
-- `average_rating` & `review_count` di tabel `movies` adalah **derived columns** yang sengaja tidak di-expose ke admin form, supaya tidak ke-overwrite saat edit.
+### Ringkasan Tabel
+
+| # | Tabel | Tujuan | RLS | Triggers |
+|---|---|---|:---:|:---:|
+| 1 | `auth.users` | Identity provider (managed Supabase) | ✅ | — |
+| 2 | `profiles` | Data publik user (nama, role, bio) | ✅ | — |
+| 3 | `movies` | Katalog film + agregat statistik | ✅ | — |
+| 4 | `reviews` | Review user 1-5 stars | ✅ | 2 |
+| 5 | `watchlist` | "Watch later" privat per user | ✅ | — |
+| 6 | `movie_awards` | Penghargaan resmi (Oscar/BAFTA/Cannes) | ✅ | — |
+
+---
+
+### 1. `profiles` — Public User Data
+
+**Tujuan**: Menyimpan info publik user yang aman di-display di review (nama, badge, role). Terpisah dari `auth.users` agar password & email tetap private.
+
+| Kolom | Tipe | Nullable | Default | Deskripsi |
+|---|---|:---:|---|---|
+| `id` | `uuid` | ❌ | — | PK & FK ke `auth.users(id)`, ON DELETE CASCADE |
+| `name` | `text` | ❌ | `''` | Nama lengkap untuk display |
+| `username` | `text` | ✅ | `null` | Handle unik opsional |
+| `initials` | `text` | ❌ | `''` | Inisial untuk fallback avatar |
+| `bio` | `text` | ❌ | `''` | Bio singkat |
+| `badge_label` | `text` | ❌ | `'Member'` | Badge custom (Critic, Member, dll.) |
+| `role` | `text` | ❌ | `'user'` | `'user'` atau `'admin'` (CHECK enforced) |
+| `favorite_genres` | `text[]` | ❌ | `'{}'` | Genre kesukaan untuk personalisasi |
+| `created_at` | `timestamptz` | ❌ | `now()` | Timestamp pendaftaran |
+
+**Constraints**:
+- **PK** `id` → `auth.users(id)` ON DELETE CASCADE (profile hilang saat user di-delete)
+- **UNIQUE** `username` (boleh NULL, NULL tidak masuk constraint)
+- **CHECK** `role IN ('user', 'admin')` — privilege escalation guard di DB level
+
+**Indexes**:
+- `profiles_role_idx` di `(role)` — speedup `WHERE role = 'admin'` lookup oleh `is_admin()`
+
+**RLS Policies**:
+
+```sql
+-- Anyone can read all profiles
+CREATE POLICY "profiles_select_all" ON profiles FOR SELECT USING (true);
+
+-- Owner creates their own row (sign-up flow)
+CREATE POLICY "profiles_insert_own" ON profiles FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
+-- Owner updates their own row
+CREATE POLICY "profiles_update_own" ON profiles FOR UPDATE
+  USING (auth.uid() = id);
+```
+
+**Catatan engineering**:
+- Tidak ada DELETE policy — penghapusan profile mengikuti CASCADE dari `auth.users`
+- Service `profile.ts` **strip kolom `role`** dari payload update di client side, sebagai layer pertahanan tambahan
+- `id = auth.users.id` (1:1 mapping) — bukan kolom `user_id` terpisah
+
+---
+
+### 2. `movies` — Katalog Film
+
+**Tujuan**: Data master film termasuk metadata, media URL, dan agregat statistik. Dua kolom (`average_rating`, `review_count`) di-derive otomatis via trigger di `reviews`.
+
+| Kolom | Tipe | Nullable | Default | Deskripsi |
+|---|---|:---:|---|---|
+| `id` | `text` | ❌ | — | PK slug-style (cth: `eclipse-run`) |
+| `title` | `text` | ❌ | — | Judul film |
+| `tagline` | `text` | ❌ | `''` | Tagline pendek di bawah judul |
+| `year` | `integer` | ❌ | — | Tahun rilis |
+| `runtime_minutes` | `integer` | ❌ | — | Durasi dalam menit |
+| `genres` | `text[]` | ❌ | `'{}'` | Array genre |
+| `director` | `text` | ❌ | `''` | Nama sutradara |
+| `synopsis` | `text` | ❌ | `''` | Sinopsis panjang |
+| `poster_url` | `text` | ❌ | `''` | URL gambar poster |
+| `backdrop_url` | `text` | ❌ | `''` | URL gambar backdrop wide |
+| `average_rating` | `numeric(3,1)` | ❌ | `0` | Rata-rata rating ⚙️ **derived** |
+| `review_count` | `integer` | ❌ | `0` | Jumlah review ⚙️ **derived** |
+| `is_featured` | `boolean` | ❌ | `false` | Toggle untuk featured carousel |
+| `created_at` | `timestamptz` | ❌ | `now()` | Timestamp dibuat |
+
+**Constraints**:
+- **PK** `id` (text slug, bukan UUID — readable URL & SEO-friendly)
+
+**RLS Policies**:
+
+```sql
+-- Anyone can read movies
+CREATE POLICY "movies_select_all" ON movies FOR SELECT USING (true);
+
+-- Admin only: full CRUD
+CREATE POLICY "movies_insert_admin" ON movies FOR INSERT
+  WITH CHECK (is_admin());
+CREATE POLICY "movies_update_admin" ON movies FOR UPDATE
+  USING (is_admin()) WITH CHECK (is_admin());
+CREATE POLICY "movies_delete_admin" ON movies FOR DELETE
+  USING (is_admin());
+```
+
+**Catatan engineering**:
+- `average_rating` dan `review_count` **TIDAK boleh di-edit langsung** dari admin form. `services/admin-movies.ts` `toDbPayload()` secara conditional skip kedua kolom ini agar trigger DB tetap source of truth
+- ID slug-style (`eclipse-run` bukan `uuid`) memudahkan deep-link dan readable URL
+- Kolom dimodifikasi oleh **trigger di tabel `reviews`** — lihat `recalc_movie_aggregates()` di section Database Functions
+
+---
+
+### 3. `reviews` — Review User
+
+**Tujuan**: Review yang ditulis user untuk film, dengan rating, body, tag, dan flag spoiler. **Satu user maksimal punya satu review per film** (editable, tidak bisa di-delete oleh user).
+
+| Kolom | Tipe | Nullable | Default | Deskripsi |
+|---|---|:---:|---|---|
+| `id` | `text` | ❌ | `gen_random_uuid()::text` | PK auto-generated |
+| `movie_id` | `text` | ❌ | — | FK → `movies(id)` ON DELETE CASCADE |
+| `user_id` | `uuid` | ✅ | — | FK → `auth.users(id)` ON DELETE SET NULL |
+| `author_name` | `text` | ❌ | — | Snapshot nama saat review dibuat |
+| `title` | `text` | ❌ | `''` | Judul review opsional |
+| `body` | `text` | ❌ | — | Body utama review |
+| `rating` | `numeric(2,1)` | ❌ | — | Rating 1-5 (CHECK enforced) |
+| `tags` | `text[]` | ❌ | `'{}'` | Tag opsional |
+| `contains_spoilers` | `boolean` | ❌ | `false` | Flag spoiler |
+| `created_at` | `timestamptz` | ❌ | `now()` | Timestamp dibuat |
+| `updated_at` | `timestamptz` | ✅ | `null` | Auto-set via trigger setiap UPDATE |
+
+**Constraints**:
+- **PK** `id`
+- **FK**:
+  - `movie_id` → `movies(id)` **ON DELETE CASCADE** — review hilang saat film di-delete
+  - `user_id` → `auth.users(id)` **ON DELETE SET NULL** — review tetap ada walaupun user di-delete (jadi anonim)
+- **UNIQUE** `(user_id, movie_id)` — anti-spam: 1 review per user per film
+- **CHECK** `rating >= 1 AND rating <= 5` — domain validation
+
+**Indexes**:
+- `reviews_user_created_at_idx` di `(user_id, created_at DESC)` — speedup query "review terbaru user X" di profile screen
+
+**RLS Policies**:
+
+```sql
+-- Anyone can read all reviews
+CREATE POLICY "reviews_select_all" ON reviews FOR SELECT USING (true);
+
+-- User insert own review
+CREATE POLICY "reviews_insert_own" ON reviews FOR INSERT
+  WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
+
+-- Author can edit (no delete by author)
+CREATE POLICY "reviews_update_own" ON reviews FOR UPDATE
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- Admin can delete (moderation)
+CREATE POLICY "reviews_delete_admin" ON reviews FOR DELETE
+  USING (is_admin());
+```
+
+**Triggers**:
+
+| Nama Trigger | Event | Function |
+|---|---|---|
+| `reviews_set_updated_at` | BEFORE UPDATE | `set_reviews_updated_at()` |
+| `reviews_recalc_movie_aggregates` | AFTER INSERT/UPDATE OF (rating, movie_id)/DELETE | `recalc_movie_aggregates()` |
+
+**Catatan engineering**:
+- UNIQUE `(user_id, movie_id)` mencegah user spam. NULL pada `user_id` tidak masuk constraint (seed lama dengan `user_id = NULL` aman)
+- User hanya bisa **edit**, tidak **delete**. Delete murni admin moderation
+- `rating numeric(2,1)` mendukung half-star (cth: 4.5) walaupun UI saat ini integer-only
+- Karena `user_id` ke `auth.users` (bukan `profiles`), PostgREST **tidak bisa auto-embed** `profiles(name)` join. Solusi: manual `IN`-query lookup di `services/admin-reviews.ts` (lihat pola engineering)
+
+---
+
+### 4. `watchlist` — Watch Later Pribadi
+
+**Tujuan**: Menyimpan film yang ingin ditonton user. **Privat per user**, tidak shared publicly.
+
+| Kolom | Tipe | Nullable | Default | Deskripsi |
+|---|---|:---:|---|---|
+| `id` | `bigint` | ❌ | identity | PK auto-increment |
+| `user_id` | `uuid` | ❌ | — | FK → `auth.users(id)` ON DELETE CASCADE |
+| `movie_id` | `text` | ❌ | — | FK → `movies(id)` ON DELETE CASCADE |
+| `added_at` | `timestamptz` | ❌ | `now()` | Timestamp ditambahkan |
+
+**Constraints**:
+- **PK** `id`
+- **FK** keduanya ON DELETE CASCADE (no orphan rows)
+- **UNIQUE** `(user_id, movie_id)` — film tidak bisa double-add
+
+**RLS Policies**:
+
+```sql
+-- Owner only: read & write (single combined policy)
+CREATE POLICY "watchlist_own" ON watchlist
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+```
+
+**Catatan engineering**:
+- Single combined policy untuk read+write ownership — tidak perlu split jadi 4 policy berbeda
+- ON DELETE CASCADE di kedua FK menjaga integritas: hapus user atau film → entry watchlist auto-delete
+
+---
+
+### 5. `movie_awards` — Penghargaan Film
+
+**Tujuan**: Menyimpan data penghargaan resmi yang diterima film (Oscar, BAFTA, Cannes, dll.). Ditambahkan di migrasi 007 untuk menggantikan heuristik `average_rating >= 4.5` yang tidak akurat secara semantik.
+
+| Kolom | Tipe | Nullable | Default | Deskripsi |
+|---|---|:---:|---|---|
+| `id` | `bigint` | ❌ | identity | PK auto-increment |
+| `movie_id` | `text` | ❌ | — | FK → `movies(id)` ON DELETE CASCADE |
+| `award_name` | `text` | ❌ | — | Nama award (cth: `"Best Picture"`) |
+| `organization` | `text` | ❌ | — | Organisasi (cth: `"Academy Awards"`) |
+| `year` | `integer` | ❌ | — | Tahun penghargaan |
+| `category` | `text` | ✅ | `null` | Kategori opsional (cth: `"Drama"`) |
+| `is_winner` | `boolean` | ❌ | `true` | `true` = won, `false` = nominasi |
+| `created_at` | `timestamptz` | ❌ | `now()` | Timestamp ditambahkan |
+
+**Constraints**:
+- **PK** `id`
+- **FK** `movie_id` → `movies(id)` ON DELETE CASCADE
+- **CHECK** `year BETWEEN 1900 AND 2100` — sanity bound
+- **UNIQUE INDEX** `(movie_id, organization, year, award_name, COALESCE(category, ''))` — anti-duplikat di admin editor
+
+**Indexes**:
+- `movie_awards_movie_idx` di `(movie_id)` — speedup "list awards untuk film X"
+- `movie_awards_year_idx` di `(year DESC)` — sorting newest-first
+- `movie_awards_unique_entry` UNIQUE INDEX (lihat constraint)
+
+**RLS Policies**:
+
+```sql
+-- Public read (anyone bisa lihat penghargaan film)
+CREATE POLICY "movie_awards_select_all" ON movie_awards
+  FOR SELECT USING (true);
+
+-- Admin write only
+CREATE POLICY "movie_awards_insert_admin" ON movie_awards
+  FOR INSERT WITH CHECK (is_admin());
+CREATE POLICY "movie_awards_update_admin" ON movie_awards
+  FOR UPDATE USING (is_admin()) WITH CHECK (is_admin());
+CREATE POLICY "movie_awards_delete_admin" ON movie_awards
+  FOR DELETE USING (is_admin());
+```
+
+**Catatan engineering**:
+- Pakai **UNIQUE INDEX** dengan `COALESCE(category, '')` (bukan UNIQUE CONSTRAINT) karena PG hanya support constraint pada kolom polos, bukan ekspresi
+- Filter "Awarded" di `services/movies.ts` pakai pattern `EXISTS` join via PostgREST: `select('*, movie_awards!inner(id)').eq('movie_awards.is_winner', true)`
+- Single film bisa punya banyak award (Oscar Best Picture + BAFTA Best Film tahun yang sama valid karena UNIQUE termasuk `organization`)
+- `is_winner = false` untuk nominasi yang tidak menang — saat ini filter UI hanya yang `is_winner = true`, tapi data nominasi tetap di-store untuk fitur masa depan
+
+---
+
+### Database Functions
+
+#### `is_admin() → boolean`
+
+```sql
+CREATE FUNCTION is_admin() RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$;
+
+REVOKE ALL ON FUNCTION is_admin() FROM public;
+GRANT EXECUTE ON FUNCTION is_admin() TO authenticated;
+```
+
+- Helper untuk RLS policies — dipanggil di setiap admin policy (`movies_insert_admin`, `reviews_delete_admin`, dll.)
+- **`SECURITY DEFINER`** agar bypass RLS pada `profiles` itu sendiri (cegah recursion infinite loop saat policy `profiles_select_all` mau check `is_admin()` yang lookup ke `profiles`)
+- **`STABLE`** — hasil sama dalam satu query (Postgres bisa cache)
+- Permission ditarik dari `public`, hanya `authenticated` yang boleh execute
+
+#### `recalc_movie_aggregates() → trigger`
+
+PL/pgSQL trigger function yang dipanggil dari `reviews` setiap ada perubahan rating. Fungsi ini:
+1. Re-count `COUNT(*)` semua review untuk movie target
+2. Re-compute `ROUND(AVG(rating), 1)` semua review untuk movie target
+3. Update `movies.review_count` & `movies.average_rating` dengan hasil baru
+
+Mengganti seed data inconsistent (`review_count = 4821` padahal cuma 2 review real) dengan nilai yang akurat dari source of truth.
+
+#### `set_reviews_updated_at() → trigger`
+
+PL/pgSQL trigger sederhana yang set `NEW.updated_at = now()` BEFORE UPDATE pada `reviews`. Memberi audit trail kapan terakhir review di-edit, dan UI menampilkan "edited" badge jika `updated_at IS NOT NULL`.
+
+---
+
+### Triggers
+
+| Trigger | Tabel | Event | Function | Tujuan |
+|---|---|---|---|---|
+| `reviews_set_updated_at` | `reviews` | BEFORE UPDATE | `set_reviews_updated_at()` | Audit trail edit |
+| `reviews_recalc_movie_aggregates` | `reviews` | AFTER INSERT, UPDATE OF (rating, movie_id), DELETE | `recalc_movie_aggregates()` | Sync agregat ke `movies` |
+
+**Kenapa trigger di level DB (bukan di service layer)**:
+- ✅ Tidak bisa di-bypass walaupun ada bug atau call langsung ke Supabase via SQL editor
+- ✅ Atomic dengan operasi review (single transaction — tidak ada race condition)
+- ✅ Tidak butuh round-trip dari client ke server berkali-kali untuk update related table
+- ✅ Source of truth: data agregat selalu match dengan reality di tabel `reviews`
+
+---
+
+### Migrasi Berurutan
+
+| File | Tujuan | Object Penting |
+|---|---|---|
+| `001_initial_schema.sql` | Schema dasar 4 tabel + RLS dasar | 4 tabel, 5 policies |
+| `002_profile_query_indexes.sql` | Index untuk profile screen | `reviews_user_created_at_idx` |
+| `003_profile_insert_own.sql` | Self-create profile | `profiles_insert_own` policy |
+| `004_reviews_single_per_user_editable.sql` | 1 review per user + edit history | `updated_at` col, UNIQUE`(user_id, movie_id)`, trigger `reviews_set_updated_at`, policy `reviews_update_own` |
+| `005_admin_role.sql` | Role-based access control | `profiles.role` col, `is_admin()`, 4 admin policies di `movies` & `reviews` |
+| `006_movies_aggregates_trigger.sql` | Auto-recalc agregat | `recalc_movie_aggregates()`, trigger di `reviews`, one-shot recalc untuk data lama |
+| `007_movie_awards.sql` | First-class awards entity | `movie_awards` tabel + 3 indexes + 4 RLS policies |
 
 ---
 
@@ -325,8 +656,10 @@ MovieReview/
 │   │   ├── 002_profile_query_indexes.sql
 │   │   ├── 003_profile_insert_own.sql
 │   │   ├── 004_reviews_single_per_user_editable.sql
-│   │   └── 005_admin_role.sql    # RLS + helper is_admin()
-│   └── seed.sql                  # Sample film + review
+│   │   ├── 005_admin_role.sql                  # RLS + helper is_admin()
+│   │   ├── 006_movies_aggregates_trigger.sql   # Auto-recalc rating & count
+│   │   └── 007_movie_awards.sql                # First-class awards entity
+│   └── seed.sql                  # Sample film + review + awards
 ├── theme/                        # Design tokens
 └── package.json
 ```
@@ -371,9 +704,11 @@ supabase/migrations/002_profile_query_indexes.sql
 supabase/migrations/003_profile_insert_own.sql
 supabase/migrations/004_reviews_single_per_user_editable.sql
 supabase/migrations/005_admin_role.sql
+supabase/migrations/006_movies_aggregates_trigger.sql
+supabase/migrations/007_movie_awards.sql
 ```
 
-Opsional: jalankan `supabase/seed.sql` untuk mengisi sample data film dan review.
+Opsional: jalankan `supabase/seed.sql` untuk mengisi sample data film, review, dan awards.
 
 ### 4. Promote User Menjadi Admin
 
@@ -525,9 +860,13 @@ function toDbPayload(input: MovieInput): Record<string, unknown> {
 |---|---:|
 | 📱 Screens (TSX di `app/`) | **17** |
 | 🧱 Reusable Components | **22** |
-| ⚙️ Service Modules | **5** |
-| 🗃️ Database Migrations | **5** |
-| 🔒 RLS Policies | **8+** |
+| ⚙️ Service Modules | **6** |
+| 🗃️ Database Tables | **5** + auth.users |
+| 🗃️ Database Migrations | **7** |
+| ⚡ Database Triggers | **2** |
+| 🛠️ Database Functions | **3** |
+| 🔒 RLS Policies | **14** |
+| 🔍 Database Indexes | **4** (custom) |
 | 📦 Dependencies | **27** |
 | ✅ TypeScript Strict | **100%** |
 | 🐛 Lint Errors | **0** |
