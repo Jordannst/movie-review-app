@@ -7,8 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { MovieForm } from '@/components/admin/movie-form';
 import { ThemedText } from '@/components/themed-text';
-import { Movie } from '@/data/types';
+import { Award, Movie } from '@/data/types';
 import { type MovieInput, updateMovie } from '@/services/admin-movies';
+import { getAwardsForMovie } from '@/services/awards';
 import { getMovieById } from '@/services/movies';
 
 const BG = '#0B0D12';
@@ -32,6 +33,7 @@ function Edit(): ReactElement {
   const id = typeof params.id === 'string' ? params.id : undefined;
 
   const [movie, setMovie] = useState<Movie | null>(null);
+  const [awards, setAwards] = useState<Award[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -43,11 +45,15 @@ function Edit(): ReactElement {
     }
 
     let cancelled = false;
-    void getMovieById(id)
-      .then((m) => {
+    Promise.all([getMovieById(id), getAwardsForMovie(id)])
+      .then(([m, aw]) => {
         if (cancelled) return;
-        if (m) setMovie(m);
-        else setNotFound(true);
+        if (m) {
+          setMovie(m);
+          setAwards(aw);
+        } else {
+          setNotFound(true);
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -130,9 +136,19 @@ function Edit(): ReactElement {
     isFeatured: movie.isFeatured,
   };
 
+  // Map Award[] → AwardInput[] (drop id/movieId; coerce null category to '')
+  const initialAwards = awards.map((a) => ({
+    awardName:    a.awardName,
+    organization: a.organization,
+    year:         a.year,
+    category:     a.category ?? '',
+    isWinner:     a.isWinner,
+  }));
+
   return (
     <MovieForm
       initial={initial}
+      initialAwards={initialAwards}
       submitLabel="Save Changes"
       lockId
       onSubmit={handleSubmit}
