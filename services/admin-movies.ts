@@ -1,5 +1,6 @@
 import { Movie } from '@/data/types';
 import { supabase } from '@/lib/supabase';
+import { replaceAwardsForMovie, type AwardInput } from '@/services/awards';
 
 export type MovieInput = {
   id: string;              // slug-style id, e.g. 'the-dark-knight'
@@ -15,6 +16,8 @@ export type MovieInput = {
   averageRating?: number;  // defaults to 0
   reviewCount?: number;    // defaults to 0
   isFeatured?: boolean;    // defaults to false
+  /** Optional — when present, overwrites the movie's awards atomically. */
+  awards?: AwardInput[];
 };
 
 /**
@@ -60,6 +63,9 @@ export async function createMovie(input: MovieInput): Promise<Movie> {
     if (error.code === '23505') throw new Error('Movie ID already exists — pick a unique slug.');
     throw new Error(`createMovie: ${error.message}`);
   }
+  if (input.awards) {
+    await replaceAwardsForMovie(input.id.trim(), input.awards);
+  }
   return mapRow(data);
 }
 
@@ -75,6 +81,9 @@ export async function updateMovie(id: string, input: MovieInput): Promise<Movie>
   if (error) {
     if (error.code === 'PGRST116') throw new Error('Movie no longer exists.');
     throw new Error(`updateMovie: ${error.message}`);
+  }
+  if (input.awards) {
+    await replaceAwardsForMovie(id, input.awards);
   }
   return mapRow(data);
 }
