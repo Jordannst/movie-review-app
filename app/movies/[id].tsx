@@ -8,6 +8,7 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AwardsList } from '@/components/awards-list';
 import { MotionPressable } from '@/components/motion-pressable';
 import { PrimaryButton } from '@/components/primary-button';
 import { ReviewCard } from '@/components/review-card';
@@ -403,7 +404,14 @@ export default function MovieDetailScreen(): ReactElement {
             </ThemedText>
           </Animated.View>
 
-          {/* ── CONTEXTUAL CTA ───────────────────────────────────── */}
+          {/* ── AWARDS ───────────────────────────────────── */}
+          {selectedMovie.awards && selectedMovie.awards.length > 0 ? (
+            <Animated.View entering={getEnterAnimation(200)}>
+              <AwardsList awards={selectedMovie.awards} />
+            </Animated.View>
+          ) : null}
+
+          {/* ── CONTEXTUAL CTA ───────────────────────────── */}
           <Animated.View entering={getEnterAnimation(220)} style={styles.ctaWrap}>
             <LinearGradient
               colors={['rgba(124,58,237,0.18)', 'rgba(59,130,246,0.10)']}
