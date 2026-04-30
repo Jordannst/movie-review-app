@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { type ReactElement } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { AwardBadge } from '@/components/award-badge';
 import { MotionPressable } from '@/components/motion-pressable';
 import { RatingStars } from '@/components/rating-stars';
 import { ThemedText } from '@/components/themed-text';
@@ -47,6 +48,7 @@ export function MovieCard({ movie, onPress, style }: MovieCardProps): ReactEleme
 
       <View style={styles.content}>
         <View style={styles.topSection}>
+          {movie.hasWinningAward ? <AwardBadge style={styles.badgeOffset} /> : null}
           <ThemedText type="defaultSemiBold" numberOfLines={2}>
             {movie.title}
           </ThemedText>
@@ -98,6 +100,7 @@ const styles = StyleSheet.create({
   topSection: {
     gap: 6,
   },
+  badgeOffset: { marginBottom: 2 },
   tagline: {
     fontSize: 14,
     lineHeight: 20,
