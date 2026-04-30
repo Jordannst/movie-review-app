@@ -12,6 +12,20 @@ export type Movie = {
   averageRating: number;
   reviewCount: number;
   isFeatured?: boolean;
+  /** Lightweight flag for cards/lists. Populated by `getMoviesFiltered`. */
+  hasWinningAward?: boolean;
+  /** Full awards list. Populated by `getMovieById`. */
+  awards?: Award[];
+};
+
+export type Award = {
+  id: number;
+  movieId: Movie['id'];
+  awardName: string;        // "Best Picture"
+  organization: string;     // "Academy Awards"
+  year: number;
+  category?: string | null; // nullable
+  isWinner: boolean;
 };
 
 export type Review = {
