@@ -2,14 +2,27 @@ import { Image } from 'expo-image';
 import { useEffect } from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat,
+    withTiming,
 } from 'react-native-reanimated';
 
-import { movies } from '@/data/movies';
+// Decorative-only poster URLs sourced from TMDB public CDN. Mirrors the
+// seeded films in `supabase/seed.sql` so the auth screen visual matches
+// what the user will see once signed in. Stored as plain strings (no
+// metadata) because this background grid is purely visual.
+const POSTER_URLS: readonly string[] = [
+  'https://image.tmdb.org/t/p/w500/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg', // Inception
+  'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg', // The Dark Knight
+  'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg', // Interstellar
+  'https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg', // Parasite
+  'https://image.tmdb.org/t/p/w500/62HCnUTziyWcpDaBO2i1DX17ljH.jpg', // Top Gun: Maverick
+  'https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg', // Oppenheimer
+  'https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg', // Dune: Part Two
+  'https://image.tmdb.org/t/p/w500/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg', // Blade Runner 2049
+];
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -18,7 +31,7 @@ const POSTER_W = (SCREEN_W - GAP * (COLUMN_COUNT + 1)) / COLUMN_COUNT;
 const POSTER_H = POSTER_W * 1.5;
 const ROW_H = POSTER_H + GAP;
 
-const ALL_URLS = movies.map((m) => m.posterUrl);
+const ALL_URLS = POSTER_URLS;
 // Pad to a multiple of COLUMN_COUNT so every row is full
 const PADDED_COUNT = Math.ceil(ALL_URLS.length / COLUMN_COUNT) * COLUMN_COUNT;
 const ONE_SET: string[] = [];
