@@ -155,3 +155,80 @@ values
    'Roger Deakins'' cinematography is the best of the 2010s, full stop. The film takes its time building an atmosphere that gets under your skin. It''s a meditative experience that improves significantly with rewatches.',
    4.8, false)
 on conflict (id) do nothing;
+
+-- ─────────────────────────────────────────────────────────────
+-- Real movie awards (Academy Awards, Cannes, BAFTA)
+-- All entries are real-world records. Idempotent — duplicates
+-- absorbed by the unique index `movie_awards_unique_entry` from
+-- 007_movie_awards.sql.
+-- ─────────────────────────────────────────────────────────────
+insert into public.movie_awards (movie_id, award_name, organization, year, category, is_winner)
+values
+  -- ── Inception (83rd Academy Awards, ceremony 2011 for 2010 films) ──
+  ('inception',          'Best Cinematography',       'Academy Awards', 2011, null, true),
+  ('inception',          'Best Sound Editing',        'Academy Awards', 2011, null, true),
+  ('inception',          'Best Sound Mixing',         'Academy Awards', 2011, null, true),
+  ('inception',          'Best Visual Effects',       'Academy Awards', 2011, null, true),
+  ('inception',          'Best Picture',              'Academy Awards', 2011, null, false),
+  ('inception',          'Best Original Screenplay',  'Academy Awards', 2011, null, false),
+  ('inception',          'Best Original Score',       'Academy Awards', 2011, null, false),
+  ('inception',          'Best Art Direction',        'Academy Awards', 2011, null, false),
+
+  -- ── The Dark Knight (81st Academy Awards, ceremony 2009 for 2008 films) ──
+  ('the-dark-knight',    'Best Supporting Actor',     'Academy Awards', 2009, 'Heath Ledger', true),
+  ('the-dark-knight',    'Best Sound Editing',        'Academy Awards', 2009, null, true),
+  ('the-dark-knight',    'Best Cinematography',       'Academy Awards', 2009, null, false),
+  ('the-dark-knight',    'Best Art Direction',        'Academy Awards', 2009, null, false),
+  ('the-dark-knight',    'Best Film Editing',         'Academy Awards', 2009, null, false),
+  ('the-dark-knight',    'Best Makeup',               'Academy Awards', 2009, null, false),
+  ('the-dark-knight',    'Best Sound Mixing',         'Academy Awards', 2009, null, false),
+  ('the-dark-knight',    'Best Visual Effects',       'Academy Awards', 2009, null, false),
+  ('the-dark-knight',    'Best Supporting Actor',     'BAFTA Awards',   2009, 'Heath Ledger', true),
+
+  -- ── Interstellar (87th Academy Awards, ceremony 2015 for 2014 films) ──
+  ('interstellar',       'Best Visual Effects',       'Academy Awards', 2015, null, true),
+  ('interstellar',       'Best Original Score',       'Academy Awards', 2015, null, false),
+  ('interstellar',       'Best Production Design',    'Academy Awards', 2015, null, false),
+  ('interstellar',       'Best Sound Editing',        'Academy Awards', 2015, null, false),
+  ('interstellar',       'Best Sound Mixing',         'Academy Awards', 2015, null, false),
+
+  -- ── Parasite (92nd Academy Awards, ceremony 2020 for 2019 films) ──
+  ('parasite',           'Best Picture',              'Academy Awards', 2020, null, true),
+  ('parasite',           'Best Director',             'Academy Awards', 2020, 'Bong Joon-ho', true),
+  ('parasite',           'Best Original Screenplay',  'Academy Awards', 2020, null, true),
+  ('parasite',           'Best International Feature Film', 'Academy Awards', 2020, null, true),
+  ('parasite',           'Palme d''Or',               'Cannes Film Festival', 2019, null, true),
+  ('parasite',           'Best Film Not in the English Language', 'BAFTA Awards', 2020, null, true),
+  ('parasite',           'Best Original Screenplay',  'BAFTA Awards',   2020, null, true),
+
+  -- ── Top Gun: Maverick (95th Academy Awards, ceremony 2023 for 2022 films) ──
+  ('top-gun-maverick',   'Best Sound',                'Academy Awards', 2023, null, true),
+  ('top-gun-maverick',   'Best Picture',              'Academy Awards', 2023, null, false),
+  ('top-gun-maverick',   'Best Adapted Screenplay',   'Academy Awards', 2023, null, false),
+  ('top-gun-maverick',   'Best Original Song',        'Academy Awards', 2023, 'Hold My Hand', false),
+  ('top-gun-maverick',   'Best Visual Effects',       'Academy Awards', 2023, null, false),
+  ('top-gun-maverick',   'Best Film Editing',         'Academy Awards', 2023, null, false),
+
+  -- ── Oppenheimer (96th Academy Awards, ceremony 2024 for 2023 films) ──
+  ('oppenheimer',        'Best Picture',              'Academy Awards', 2024, null, true),
+  ('oppenheimer',        'Best Director',             'Academy Awards', 2024, 'Christopher Nolan', true),
+  ('oppenheimer',        'Best Actor',                'Academy Awards', 2024, 'Cillian Murphy', true),
+  ('oppenheimer',        'Best Supporting Actor',     'Academy Awards', 2024, 'Robert Downey Jr.', true),
+  ('oppenheimer',        'Best Cinematography',       'Academy Awards', 2024, null, true),
+  ('oppenheimer',        'Best Film Editing',         'Academy Awards', 2024, null, true),
+  ('oppenheimer',        'Best Original Score',       'Academy Awards', 2024, null, true),
+  ('oppenheimer',        'Best Film',                 'BAFTA Awards',   2024, null, true),
+  ('oppenheimer',        'Best Director',             'BAFTA Awards',   2024, 'Christopher Nolan', true),
+
+  -- ── Dune: Part Two (97th Academy Awards, ceremony 2025 for 2024 films) ──
+  ('dune-part-two',      'Best Sound',                'Academy Awards', 2025, null, true),
+  ('dune-part-two',      'Best Visual Effects',       'Academy Awards', 2025, null, true),
+  ('dune-part-two',      'Best Picture',              'Academy Awards', 2025, null, false),
+
+  -- ── Blade Runner 2049 (90th Academy Awards, ceremony 2018 for 2017 films) ──
+  ('blade-runner-2049',  'Best Cinematography',       'Academy Awards', 2018, 'Roger Deakins', true),
+  ('blade-runner-2049',  'Best Visual Effects',       'Academy Awards', 2018, null, true),
+  ('blade-runner-2049',  'Best Production Design',    'Academy Awards', 2018, null, false),
+  ('blade-runner-2049',  'Best Sound Editing',        'Academy Awards', 2018, null, false),
+  ('blade-runner-2049',  'Best Sound Mixing',         'Academy Awards', 2018, null, false)
+on conflict do nothing;
