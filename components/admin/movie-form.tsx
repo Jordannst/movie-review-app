@@ -41,6 +41,14 @@ const ALL_GENRES = [
 
 const SYNOPSIS_MAX = 600;
 
+function normalizeGenre(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function sameGenre(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 type MovieFormProps = {
   initial?: Partial<MovieInput>;
   initialAwards?: AwardInput[];
@@ -72,6 +80,7 @@ export function MovieForm({
   const [posterUrl, setPosterUrl] = useState(initial?.posterUrl ?? '');
   const [backdropUrl, setBackdropUrl] = useState(initial?.backdropUrl ?? '');
   const [genres, setGenres] = useState<string[]>(initial?.genres ?? []);
+  const [customGenre, setCustomGenre] = useState('');
   const [isFeatured, setIsFeatured] = useState<boolean>(initial?.isFeatured ?? false);
   const [awards, setAwards] = useState<AwardInput[]>(initialAwards ?? []);
 
@@ -88,11 +97,33 @@ export function MovieForm({
     () => validate({ id, title, year, runtime, posterUrl, backdropUrl }),
     [id, title, year, runtime, posterUrl, backdropUrl]
   );
+  const genreOptions = useMemo(() => {
+    const customSelectedGenres = genres.filter(
+      (genre) => !ALL_GENRES.some((baseGenre) => sameGenre(baseGenre, genre))
+    );
+
+    return [...ALL_GENRES, ...customSelectedGenres];
+  }, [genres]);
+  const canAddCustomGenre = normalizeGenre(customGenre).length > 0;
 
   const canSubmit = Object.values(errors).every((e) => !e) && !submitting;
 
   function toggleGenre(g: string) {
-    setGenres((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
+    setGenres((prev) => (
+      prev.some((x) => sameGenre(x, g))
+        ? prev.filter((x) => !sameGenre(x, g))
+        : [...prev, g]
+    ));
+  }
+
+  function addCustomGenre() {
+    const nextGenre = normalizeGenre(customGenre);
+    if (!nextGenre) return;
+
+    setGenres((prev) => (
+      prev.some((genre) => sameGenre(genre, nextGenre)) ? prev : [...prev, nextGenre]
+    ));
+    setCustomGenre('');
   }
 
   async function handleSubmit() {
@@ -284,18 +315,50 @@ export function MovieForm({
 
           <Field
             label="Genres"
+            hint="Pick existing badges or add a custom genre."
             counter={genres.length > 0 ? `${genres.length} selected` : undefined}>
+            <View style={styles.customGenreRow}>
+              <View style={styles.customGenreInputWrap}>
+                <TextInput
+                  value={customGenre}
+                  onChangeText={setCustomGenre}
+                  onSubmitEditing={addCustomGenre}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  placeholder="Add genre, e.g. Family"
+                  placeholderTextColor="#3A4060"
+                  returnKeyType="done"
+                  style={styles.customGenreInput}
+                />
+              </View>
+              <Pressable
+                onPress={addCustomGenre}
+                disabled={!canAddCustomGenre}
+                style={[styles.customGenreButton, !canAddCustomGenre && styles.customGenreButtonDisabled]}>
+                <Ionicons name="add" size={16} color={canAddCustomGenre ? BG : DIM} />
+                <ThemedText
+                  style={[
+                    styles.customGenreButtonText,
+                    !canAddCustomGenre && styles.customGenreButtonTextDisabled,
+                  ]}>
+                  Add
+                </ThemedText>
+              </Pressable>
+            </View>
             <View style={styles.chipsRow}>
-              {ALL_GENRES.map((g) => {
-                const active = genres.includes(g);
+              {genreOptions.map((g) => {
+                const active = genres.some((genre) => sameGenre(genre, g));
                 return (
                   <Pressable
                     key={g}
                     onPress={() => toggleGenre(g)}
                     style={[styles.chip, active && styles.chipActive]}>
-                    <ThemedText style={[styles.chipText, active && styles.chipTextActive]}>
-                      {g}
-                    </ThemedText>
+                    <View style={styles.chipContent}>
+                      <ThemedText style={[styles.chipText, active && styles.chipTextActive]}>
+                        {g}
+                      </ThemedText>
+                      {active ? <Ionicons name="close-circle" size={13} color={YELLOW} /> : null}
+                    </View>
                   </Pressable>
                 );
               })}
@@ -603,6 +666,50 @@ const styles = StyleSheet.create({
   backdropImg: { width: '100%', height: '100%' },
 
   // Chips
+  customGenreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  customGenreInputWrap: {
+    flex: 1,
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: SURFACE,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  customGenreInput: {
+    height: 40,
+    fontSize: 14,
+    color: TEXT_PRIMARY,
+  },
+  customGenreButton: {
+    height: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: 12,
+    backgroundColor: YELLOW,
+    paddingHorizontal: 14,
+  },
+  customGenreButtonDisabled: {
+    backgroundColor: SURFACE_2,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  customGenreButtonText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: BG,
+  },
+  customGenreButtonTextDisabled: {
+    color: DIM,
+  },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 4 },
   chip: {
     paddingHorizontal: 14,
@@ -615,6 +722,11 @@ const styles = StyleSheet.create({
   chipActive: {
     backgroundColor: 'rgba(245,196,81,0.14)',
     borderColor: YELLOW,
+  },
+  chipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   chipText: {
     fontSize: 12,

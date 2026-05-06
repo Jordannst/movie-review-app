@@ -99,6 +99,10 @@ function RootNavigator({ bgColor }: { bgColor: string }): ReactElement {
       />
       <Stack.Screen name="reviews/new" options={{ headerShown: false }} />
       <Stack.Screen
+        name="watchlist"
+        options={{ headerShown: false, animation: 'slide_from_right' }}
+      />
+      <Stack.Screen
         name="profile/edit"
         options={{
           headerShown: false,

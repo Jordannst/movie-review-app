@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { startTransition, useCallback, useState, type ReactElement } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,6 +20,7 @@ import { Movie, Review } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getMovieById } from '@/services/movies';
 import { getReviewsForMovie, getUserReviewForMovie } from '@/services/reviews';
+import { addToWatchlist, isMovieInWatchlist, removeFromWatchlist } from '@/services/watchlist';
 
 const SECTION_ENTER_DURATION = 300;
 const ITEM_STAGGER = 40;
@@ -164,9 +165,12 @@ export default function MovieDetailScreen(): ReactElement {
   const [movie, setMovie] = useState<Movie | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [userReview, setUserReview] = useState<Review | null>(null);
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [isMovieLoading, setIsMovieLoading] = useState(true);
   const [movieError, setMovieError] = useState<string | null>(null);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [watchlistError, setWatchlistError] = useState<string | null>(null);
+  const [isWatchlistSaving, setIsWatchlistSaving] = useState(false);
   const [reloadVersion, setReloadVersion] = useState(0);
   const surface = useThemeColor({}, 'surface');
   const border = useThemeColor({}, 'border');
@@ -186,8 +190,10 @@ export default function MovieDetailScreen(): ReactElement {
           setMovie(null);
           setReviews([]);
           setUserReview(null);
+          setIsInWatchlist(false);
           setMovieError(null);
           setReviewsError(null);
+          setWatchlistError(null);
           setIsMovieLoading(false);
           return;
         }
@@ -208,6 +214,7 @@ export default function MovieDetailScreen(): ReactElement {
           if (!movieResult) {
             setReviews([]);
             setUserReview(null);
+            setIsInWatchlist(false);
             return;
           }
 
@@ -215,15 +222,19 @@ export default function MovieDetailScreen(): ReactElement {
           const userReviewPromise = user
             ? getUserReviewForMovie(user.id, movieId).catch(() => null)
             : Promise.resolve(null);
+          const watchlistPromise = user
+            ? isMovieInWatchlist(user.id, movieId).catch(() => false)
+            : Promise.resolve(false);
 
           try {
-            const [reviewResults, existingUserReview] = await Promise.all([
+            const [reviewResults, existingUserReview, nextIsInWatchlist] = await Promise.all([
               getReviewsForMovie(movieId, {
                 page: 1,
                 pageSize: 2,
                 sortBy: 'newest',
               }),
               userReviewPromise,
+              watchlistPromise,
             ]);
 
             if (!isActive) return;
@@ -231,6 +242,8 @@ export default function MovieDetailScreen(): ReactElement {
             startTransition(() => {
               setReviews(reviewResults.reviews);
               setUserReview(existingUserReview);
+              setIsInWatchlist(nextIsInWatchlist);
+              setWatchlistError(null);
             });
           } catch (error) {
             if (!isActive) return;
@@ -313,6 +326,33 @@ export default function MovieDetailScreen(): ReactElement {
 
   function handleOpenAllReviews(): void {
     router.push(`/movies/${selectedMovie.id}/reviews`);
+  }
+
+  async function handleToggleWatchlist(): Promise<void> {
+    if (!user) {
+      Alert.alert('Sign in required', 'Sign in before adding movies to your watchlist.');
+      return;
+    }
+
+    const nextIsInWatchlist = !isInWatchlist;
+    setIsInWatchlist(nextIsInWatchlist);
+    setIsWatchlistSaving(true);
+    setWatchlistError(null);
+
+    try {
+      if (nextIsInWatchlist) {
+        await addToWatchlist(user.id, selectedMovie.id);
+      } else {
+        await removeFromWatchlist(user.id, selectedMovie.id);
+      }
+    } catch (error) {
+      setIsInWatchlist(!nextIsInWatchlist);
+      setWatchlistError(
+        error instanceof Error ? error.message : 'Failed to update your watchlist.'
+      );
+    } finally {
+      setIsWatchlistSaving(false);
+    }
   }
 
   return (
@@ -433,6 +473,21 @@ export default function MovieDetailScreen(): ReactElement {
                   label={hasUserReview ? 'Edit your review' : 'Write Review'}
                   onPress={handleWriteReview}
                 />
+                <PrimaryButton
+                  disabled={isWatchlistSaving}
+                  label={
+                    isWatchlistSaving
+                      ? 'Updating Watchlist...'
+                      : isInWatchlist
+                        ? 'Remove from Watchlist'
+                        : 'Add to Watchlist'
+                  }
+                  onPress={handleToggleWatchlist}
+                  variant="secondary"
+                />
+                {watchlistError ? (
+                  <ThemedText style={styles.watchlistError}>{watchlistError}</ThemedText>
+                ) : null}
               </BlurView>
             </LinearGradient>
           </Animated.View>
@@ -743,6 +798,12 @@ const styles = StyleSheet.create({
   ctaBody: {
     fontSize: 13,
     lineHeight: 19,
+  },
+  watchlistError: {
+    color: '#F04452',
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 17,
   },
 
   // Reviews

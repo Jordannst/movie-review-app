@@ -2,7 +2,7 @@ import { Movie } from '@/data/types';
 import { supabase } from '@/lib/supabase';
 
 /** Map Supabase snake_case row → camelCase Movie */
-function toMovie(row: Record<string, unknown>): Movie {
+export function toMovie(row: Record<string, unknown>): Movie {
   return {
     id:             row.id as string,
     title:          row.title as string,

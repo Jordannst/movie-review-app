@@ -315,6 +315,10 @@ export default function ProfileScreen(): ReactElement {
     router.push({ pathname: '/reviews/new', params: { movieId: ctaMovie.id } });
   }
 
+  function handleOpenWatchlist(): void {
+    router.push('/watchlist' as never);
+  }
+
   function handleRetry(): void {
     setReloadVersion((current) => current + 1);
   }
@@ -459,8 +463,21 @@ export default function ProfileScreen(): ReactElement {
                   </View>
                 </Animated.View>
 
+                <Animated.View entering={getEnterAnimation(150)} style={styles.watchlistRow}>
+                  <View style={styles.watchlistCopy}>
+                    <ThemedText style={styles.watchlistLabel}>Watchlist</ThemedText>
+                    <ThemedText style={styles.watchlistTitle}>
+                      {profileStats?.watchlistCount ?? 0} saved movie
+                      {(profileStats?.watchlistCount ?? 0) === 1 ? '' : 's'}
+                    </ThemedText>
+                  </View>
+                  <Pressable onPress={handleOpenWatchlist} style={styles.queueBtn}>
+                    <ThemedText style={styles.queueBtnText}>Open -&gt;</ThemedText>
+                  </Pressable>
+                </Animated.View>
+
                 {favoriteGenres.length > 0 ? (
-                  <Animated.View entering={getEnterAnimation(160)} style={styles.genreRow}>
+                  <Animated.View entering={getEnterAnimation(190)} style={styles.genreRow}>
                     {favoriteGenres.map((genre) => (
                       <View key={genre} style={styles.genreTag}>
                         <ThemedText style={styles.genreText}>{genre}</ThemedText>
@@ -789,6 +806,33 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     lineHeight: 17,
     color: BG_CLR,
+  },
+  watchlistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: BORDER_CLR,
+    padding: 12,
+  },
+  watchlistCopy: {
+    flex: 1,
+  },
+  watchlistLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    lineHeight: 12,
+    color: DIM_CLR,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  watchlistTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    lineHeight: 20,
+    marginTop: 3,
   },
   sectionHeader: {
     flexDirection: 'row',
