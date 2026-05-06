@@ -25,6 +25,7 @@ export function toReview(row: Record<string, unknown>): Review {
   return {
     id:               row.id as string,
     movieId:          row.movie_id as string,
+    userId:           (row.user_id as string | null | undefined) ?? null,
     authorName:       row.author_name as string,
     title:            row.title as string,
     body:             row.body as string,

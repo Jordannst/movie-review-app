@@ -4,6 +4,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { MotionPressable } from '@/components/motion-pressable';
 import { RatingStars } from '@/components/rating-stars';
 import { ThemedText } from '@/components/themed-text';
+import { useAuth } from '@/contexts/auth-context';
 import { Review } from '@/data/types';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
@@ -43,6 +44,7 @@ export function ReviewCard({
   onRevealSpoiler,
   onHideSpoiler,
 }: ReviewCardProps): ReactElement {
+  const { user } = useAuth();
   const surface = useThemeColor({}, 'surface');
   const surfaceMuted = useThemeColor({}, 'surfaceMuted');
   const border = useThemeColor({}, 'border');
@@ -61,6 +63,7 @@ export function ReviewCard({
   }, [review.containsSpoilers, review.id, usesControlledSpoilerState]);
 
   const isSpoilerHidden = Boolean(review.containsSpoilers && !isSpoilerRevealed);
+  const isOwnReview = Boolean(user?.id && review.userId && user.id === review.userId);
 
   function handleRevealSpoiler(): void {
     if (onRevealSpoiler) {
@@ -84,7 +87,16 @@ export function ReviewCard({
     <View style={[styles.card, { backgroundColor: surface, borderColor: border }, style]}>
       <View style={styles.headerRow}>
         <View style={styles.headerText}>
-          <ThemedText type="defaultSemiBold">{review.authorName}</ThemedText>
+          <View style={styles.authorRow}>
+            <ThemedText type="defaultSemiBold" numberOfLines={1} style={styles.authorName}>
+              {review.authorName}
+            </ThemedText>
+            {isOwnReview ? (
+              <View style={[styles.youBadge, { backgroundColor: surfaceMuted, borderColor: accent }]}>
+                <ThemedText style={[styles.youBadgeText, { color: accent }]}>You</ThemedText>
+              </View>
+            ) : null}
+          </View>
           <View style={styles.dateRow}>
             <ThemedText style={[styles.date, { color: textMuted }]}>{formatReviewDate(review.createdAt)}</ThemedText>
             {editedLabel ? (
@@ -184,6 +196,28 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
     gap: 2,
+    minWidth: 0,
+  },
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
+  },
+  authorName: {
+    flexShrink: 1,
+  },
+  youBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  youBadgeText: {
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   date: {
     fontSize: 13,

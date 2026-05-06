@@ -31,6 +31,7 @@ export type Award = {
 export type Review = {
   id: string;
   movieId: Movie['id'];
+  userId?: string | null;
   authorName: string;
   title: string;
   body: string;

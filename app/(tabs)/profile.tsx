@@ -7,7 +7,6 @@ import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-nat
 import Animated, { Easing, FadeIn, FadeInDown, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ReviewCard } from '@/components/review-card';
 import { ShimmerView } from '@/components/shimmer-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -28,6 +27,8 @@ const BORDER_CLR = '#1A1D2A';
 const DIM_CLR = '#5A607A';
 const BG_CLR = '#0B0D12';
 const SHIMMER_CLR = '#1A1D2A';
+const SURFACE_CLR = '#111620';
+const SURFACE_2_CLR = '#171D2A';
 
 const ENTER_DURATION = 300;
 const ITEM_STAGGER = 40;
@@ -103,22 +104,12 @@ function ProfileLoadingSkeleton(): ReactElement {
       <View style={styles.loadingBody}>
         <ShimmerView color={SHIMMER_CLR} style={{ width: '100%', height: 44, borderRadius: 8 }} />
         <View style={styles.statsGrid}>
-          <View style={styles.statRow}>
-            <View style={[styles.statCell, styles.statBorderR, styles.statBorderB]}>
-              <ShimmerView color={SHIMMER_CLR} style={{ width: 54, height: 24, borderRadius: 6 }} />
+          {Array.from({ length: 4 }).map((_, index) => (
+            <View key={index} style={styles.statCard}>
+              <ShimmerView color={SHIMMER_CLR} style={{ width: 42, height: 22, borderRadius: 6 }} />
+              <ShimmerView color={SHIMMER_CLR} style={{ width: 44, height: 8, borderRadius: 6 }} />
             </View>
-            <View style={[styles.statCell, styles.statBorderB]}>
-              <ShimmerView color={SHIMMER_CLR} style={{ width: 54, height: 24, borderRadius: 6 }} />
-            </View>
-          </View>
-          <View style={styles.statRow}>
-            <View style={[styles.statCell, styles.statBorderR]}>
-              <ShimmerView color={SHIMMER_CLR} style={{ width: 54, height: 24, borderRadius: 6 }} />
-            </View>
-            <View style={styles.statCell}>
-              <ShimmerView color={SHIMMER_CLR} style={{ width: 54, height: 24, borderRadius: 6 }} />
-            </View>
-          </View>
+          ))}
         </View>
         {Array.from({ length: 3 }).map((_, index) => (
           <ShimmerView
@@ -359,7 +350,6 @@ export default function ProfileScreen(): ReactElement {
 
                 <View style={styles.heroOverlay} />
                 <View style={styles.accentBar} />
-                <ThemedText style={styles.ghostNum}>01</ThemedText>
 
                 <Pressable
                   onPress={handleOpenSettings}
@@ -441,38 +431,50 @@ export default function ProfileScreen(): ReactElement {
                 </Animated.View>
 
                 <Animated.View entering={getEnterAnimation(120)} style={styles.statsGrid}>
-                  <View style={styles.statRow}>
-                    <View style={[styles.statCell, styles.statBorderR, styles.statBorderB]}>
-                      <ThemedText style={styles.statValue}>{statItems[0].value}</ThemedText>
-                      <ThemedText style={styles.statLabel}>{statItems[0].label}</ThemedText>
+                  {statItems.map((item) => (
+                    <View key={item.label} style={styles.statCard}>
+                      <ThemedText style={styles.statValue}>{item.value}</ThemedText>
+                      <ThemedText style={styles.statLabel}>{item.label}</ThemedText>
                     </View>
-                    <View style={[styles.statCell, styles.statBorderB]}>
-                      <ThemedText style={styles.statValue}>{statItems[1].value}</ThemedText>
-                      <ThemedText style={styles.statLabel}>{statItems[1].label}</ThemedText>
-                    </View>
-                  </View>
-                  <View style={styles.statRow}>
-                    <View style={[styles.statCell, styles.statBorderR]}>
-                      <ThemedText style={styles.statValue}>{statItems[2].value}</ThemedText>
-                      <ThemedText style={styles.statLabel}>{statItems[2].label}</ThemedText>
-                    </View>
-                    <View style={styles.statCell}>
-                      <ThemedText style={styles.statValue}>{statItems[3].value}</ThemedText>
-                      <ThemedText style={styles.statLabel}>{statItems[3].label}</ThemedText>
-                    </View>
-                  </View>
+                  ))}
                 </Animated.View>
 
-                <Animated.View entering={getEnterAnimation(150)} style={styles.watchlistRow}>
-                  <View style={styles.watchlistCopy}>
-                    <ThemedText style={styles.watchlistLabel}>Watchlist</ThemedText>
-                    <ThemedText style={styles.watchlistTitle}>
-                      {profileStats?.watchlistCount ?? 0} saved movie
-                      {(profileStats?.watchlistCount ?? 0) === 1 ? '' : 's'}
-                    </ThemedText>
-                  </View>
-                  <Pressable onPress={handleOpenWatchlist} style={styles.queueBtn}>
-                    <ThemedText style={styles.queueBtnText}>Open -&gt;</ThemedText>
+                <Animated.View entering={getEnterAnimation(150)} style={styles.actionGrid}>
+                  <Pressable
+                    onPress={handleOpenWatchlist}
+                    style={({ pressed }) => [
+                      styles.actionCard,
+                      styles.actionCardPrimary,
+                      pressed && styles.cardPressed,
+                    ]}>
+                    <View style={styles.actionIconPrimary}>
+                      <Ionicons name="bookmark" size={18} color={BG_CLR} />
+                    </View>
+                    <View>
+                      <ThemedText style={styles.actionLabelPrimary}>Watchlist</ThemedText>
+                      <ThemedText style={styles.actionTitlePrimary}>
+                        {profileStats?.watchlistCount ?? 0} films saved
+                      </ThemedText>
+                    </View>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleWriteReview}
+                    disabled={!ctaMovie}
+                    style={({ pressed }) => [
+                      styles.actionCard,
+                      !ctaMovie && styles.actionCardDisabled,
+                      pressed && ctaMovie && styles.cardPressed,
+                    ]}>
+                    <View style={styles.actionIcon}>
+                      <Ionicons name="create-outline" size={18} color={YELLOW} />
+                    </View>
+                    <View>
+                      <ThemedText style={styles.actionLabel}>Next review</ThemedText>
+                      <ThemedText numberOfLines={2} style={styles.actionTitle}>
+                        {ctaMovie?.title ?? 'Pick a movie'}
+                      </ThemedText>
+                    </View>
                   </Pressable>
                 </Animated.View>
 
@@ -486,39 +488,36 @@ export default function ProfileScreen(): ReactElement {
                   </Animated.View>
                 ) : null}
 
-                <View style={styles.divider} />
-
-                {ctaMovie ? (
-                  <Animated.View entering={getEnterAnimation(200)} style={styles.queueRow}>
-                    <View style={styles.queueCopy}>
-                      <ThemedText style={styles.queueLabel}>Review queue</ThemedText>
-                      <ThemedText style={styles.queueTitle}>{ctaMovie.title}</ThemedText>
-                    </View>
-                    <Pressable onPress={handleWriteReview} style={styles.queueBtn}>
-                      <ThemedText style={styles.queueBtnText}>Write -&gt;</ThemedText>
-                    </Pressable>
-                  </Animated.View>
-                ) : null}
-
-                <View style={styles.divider} />
-
-                <Animated.View entering={getEnterAnimation(250)} style={styles.sectionHeader}>
-                  <ThemedText style={styles.sectionLabel}>Activity log</ThemedText>
+                <Animated.View entering={getEnterAnimation(240)} style={styles.sectionHeader}>
+                  <ThemedText style={styles.sectionLabel}>Recent activity</ThemedText>
                   <ThemedText style={styles.sectionCount}>
-                    {activityItems.length} entries
+                    {activityItems.length > 0 ? 'See all' : 'No entries'}
                   </ThemedText>
                 </Animated.View>
 
-                <View>
+                <View style={styles.activityList}>
                   {activityItems.length > 0 ? (
                     activityItems.map(({ review, movie }, index) => (
                       <Animated.View
                         key={review.id}
                         entering={getEnterAnimation(290 + index * ITEM_STAGGER)}>
                         <Pressable
-                          style={styles.activityItem}
+                          style={({ pressed }) => [
+                            styles.activityItem,
+                            pressed && styles.cardPressed,
+                          ]}
                           onPress={() => handleOpenMovie(review.movieId)}>
-                          <ThemedText style={styles.activityIcon}>R</ThemedText>
+                          {movie?.posterUrl ? (
+                            <Image
+                              source={{ uri: movie.posterUrl }}
+                              style={styles.activityPoster}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <View style={styles.activityPosterFallback}>
+                              <Ionicons name="film-outline" size={16} color={YELLOW} />
+                            </View>
+                          )}
                           <View style={styles.activityInfo}>
                             <ThemedText style={styles.activityTitle}>
                               {movie?.title ?? review.movieId}
@@ -537,33 +536,6 @@ export default function ProfileScreen(): ReactElement {
                     <View style={styles.emptyState}>
                       <ThemedText style={styles.emptyStateText}>
                         No review activity yet.
-                      </ThemedText>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.divider} />
-
-                <Animated.View entering={getEnterAnimation(430)} style={styles.sectionHeader}>
-                  <ThemedText style={styles.sectionLabel}>Recent reviews</ThemedText>
-                  <ThemedText style={styles.sectionCount}>
-                    {recentReviews.length} cards
-                  </ThemedText>
-                </Animated.View>
-
-                <View style={styles.reviewList}>
-                  {recentReviews.length > 0 ? (
-                    recentReviews.map((review, index) => (
-                      <Animated.View
-                        key={review.id}
-                        entering={getEnterAnimation(470 + index * ITEM_STAGGER)}>
-                        <ReviewCard review={review} />
-                      </Animated.View>
-                    ))
-                  ) : (
-                    <View style={styles.emptyState}>
-                      <ThemedText style={styles.emptyStateText}>
-                        Your reviews will appear here after they are saved in Supabase.
                       </ThemedText>
                     </View>
                   )}
@@ -593,9 +565,9 @@ const styles = StyleSheet.create({
   },
   loadingHero: {
     width: '100%',
-    height: 210,
+    height: 228,
     overflow: 'hidden',
-    backgroundColor: BG_CLR,
+    backgroundColor: SURFACE_CLR,
     justifyContent: 'flex-end',
     paddingHorizontal: 16,
     paddingBottom: 16,
@@ -612,13 +584,13 @@ const styles = StyleSheet.create({
   },
   hero: {
     width: '100%',
-    height: 210,
+    height: 228,
     overflow: 'hidden',
     backgroundColor: BG_CLR,
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(7,9,14,0.88)',
+    backgroundColor: 'rgba(7,9,14,0.78)',
   },
   accentBar: {
     position: 'absolute',
@@ -627,16 +599,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 3,
     backgroundColor: YELLOW,
-  },
-  ghostNum: {
-    position: 'absolute',
-    right: -6,
-    top: 8,
-    fontSize: 110,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    opacity: 0.035,
-    lineHeight: 120,
   },
   heroBottom: {
     position: 'absolute',
@@ -650,10 +612,10 @@ const styles = StyleSheet.create({
   avatarSquare: {
     width: 64,
     height: 64,
-    borderRadius: 10,
-    backgroundColor: '#1A1D2A',
+    borderRadius: 16,
+    backgroundColor: SURFACE_2_CLR,
     borderWidth: 1,
-    borderColor: '#2A2F44',
+    borderColor: 'rgba(255,255,255,0.13)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -708,43 +670,35 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     marginTop: 16,
-    borderWidth: 1,
-    borderColor: BORDER_CLR,
-  },
-  statRow: {
     flexDirection: 'row',
-    width: '100%',
+    gap: 8,
   },
-  statCell: {
+  statCard: {
     flex: 1,
-    minHeight: 74,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
+    minHeight: 66,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.035)',
     gap: 4,
   },
-  statBorderR: {
-    borderRightWidth: 1,
-    borderRightColor: BORDER_CLR,
-  },
-  statBorderB: {
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_CLR,
-  },
   statValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
-    lineHeight: 28,
+    lineHeight: 25,
     color: YELLOW,
   },
   statLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    lineHeight: 14,
+    fontSize: 8,
+    fontWeight: '800',
+    lineHeight: 11,
     color: DIM_CLR,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
     textAlign: 'center',
   },
   genreRow: {
@@ -756,8 +710,10 @@ const styles = StyleSheet.create({
   genreTag: {
     paddingHorizontal: 9,
     paddingVertical: 4,
-    backgroundColor: BORDER_CLR,
-    borderRadius: 4,
+    backgroundColor: SURFACE_2_CLR,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   genreText: {
     fontSize: 11,
@@ -765,38 +721,80 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: DIM_CLR,
   },
-  divider: {
-    height: 1,
-    backgroundColor: BORDER_CLR,
-    marginTop: 16,
-  },
-  queueRow: {
+  actionGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    gap: 12,
+    gap: 10,
+    marginTop: 14,
   },
-  queueCopy: {
+  actionCard: {
     flex: 1,
+    minHeight: 96,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: SURFACE_CLR,
+    padding: 12,
+    justifyContent: 'space-between',
   },
-  queueLabel: {
+  actionCardPrimary: {
+    backgroundColor: YELLOW,
+    borderColor: YELLOW,
+  },
+  actionCardDisabled: {
+    opacity: 0.55,
+  },
+  cardPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }],
+  },
+  actionIcon: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: 'rgba(245,200,66,0.12)',
+  },
+  actionIconPrimary: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: 'rgba(11,13,18,0.14)',
+  },
+  actionLabel: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: '900',
     lineHeight: 12,
     color: DIM_CLR,
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
+    letterSpacing: 0.7,
   },
-  queueTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    lineHeight: 22,
+  actionLabelPrimary: {
+    fontSize: 9,
+    fontWeight: '900',
+    lineHeight: 12,
+    color: 'rgba(11,13,18,0.64)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  actionTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 17,
     marginTop: 3,
+  },
+  actionTitlePrimary: {
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 17,
+    marginTop: 3,
+    color: BG_CLR,
   },
   queueBtn: {
     backgroundColor: YELLOW,
-    borderRadius: 5,
+    borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 9,
     alignSelf: 'flex-start',
@@ -807,38 +805,11 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: BG_CLR,
   },
-  watchlistRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 14,
-    borderWidth: 1,
-    borderColor: BORDER_CLR,
-    padding: 12,
-  },
-  watchlistCopy: {
-    flex: 1,
-  },
-  watchlistLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    lineHeight: 12,
-    color: DIM_CLR,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  watchlistTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    lineHeight: 20,
-    marginTop: 3,
-  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 16,
+    paddingTop: 18,
     paddingBottom: 8,
   },
   sectionLabel: {
@@ -859,17 +830,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_CLR,
+    padding: 9,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: 'rgba(255,255,255,0.035)',
   },
-  activityIcon: {
-    fontSize: 12,
-    lineHeight: 18,
-    width: 22,
-    textAlign: 'center',
-    color: YELLOW,
-    fontWeight: '900',
+  activityList: {
+    gap: 8,
+  },
+  activityPoster: {
+    width: 34,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: BORDER_CLR,
+  },
+  activityPosterFallback: {
+    width: 34,
+    height: 48,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: SURFACE_2_CLR,
   },
   activityInfo: {
     flex: 1,
@@ -891,12 +873,11 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: YELLOW,
   },
-  reviewList: {
-    gap: 12,
-  },
   emptyState: {
     borderWidth: 1,
     borderColor: BORDER_CLR,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.035)',
     paddingHorizontal: 12,
     paddingVertical: 14,
   },
